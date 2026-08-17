@@ -558,9 +558,9 @@ async function loadStockIndices() {
         <div class="muted tiny">高 ${fmtNum(i.high)} · 低 ${fmtNum(i.low)}</div>
       </div>`);
     }
-    if (list[0] && list[0].time) {
-      const t = String(list[0].time);
-      tm.textContent = t.length >= 12 ? `${t.slice(0,4)}-${t.slice(4,6)}-${t.slice(6,8)} ${t.slice(8,10)}:${t.slice(10,12)}` : t;
+    if (r.fetchedAt) {
+      const d = new Date(r.fetchedAt);
+      tm.textContent = `更新于 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
     }
   } catch (e) {
     el.innerHTML = '<div class="empty small">大盘数据暂不可用（需后端代理）</div>';
@@ -910,10 +910,9 @@ function bindEvents() {
 /* ---------- 启动 ---------- */
 async function init() {
   bindEvents();
-  await Promise.all([loadStatus(), loadMarket(), loadStockIndices(), loadHotNews(), loadHoldings(), loadAdvice(), loadHistory(), loadSettings(), loadOps()]);
+  await Promise.all([loadStatus(), loadStockIndices(), loadHotNews(), loadHoldings(), loadAdvice(), loadHistory(), loadSettings(), loadOps()]);
   setInterval(() => {
     loadStatus();
-    loadMarket();
     loadStockIndices(); // 大盘指数：交易时段内每 60s 实时刷新（非交易时段自动跳过）
     loadOps(); // 定时刷新待生效操作（跨日后服务端会自动结算）
     // 页面停在“今日”时跟随自动生成结果
