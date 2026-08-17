@@ -1,6 +1,151 @@
 /* 基金投资分析助手 - 前端逻辑 */
 const $ = (s) => document.querySelector(s);
 const IS_DEMO = new URLSearchParams(location.search).has('demo');
+/* ========== 纯前端模式（静态部署 / file:// 双击 / ?static=1 / 后端不可达 自动启用） ========== */
+let STATIC_MODE = IS_DEMO || location.protocol === 'file:' || new URLSearchParams(location.search).has('static');
+const LS_KEY = 'fund_advisor_frontend_v1';
+function lsLoad() { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch (e) { return {}; } }
+function lsSave(d) { try { localStorage.setItem(LS_KEY, JSON.stringify(d)); } catch (e) { /* 存储不可用时忽略 */ } }
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function isTradingDay() { const d = new Date().getDay(); return d >= 1 && d <= 5; }
+function nowHM() { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+const LOCAL_MARKET = {
+  fetchedAt: Date.now(),
+  list: [
+    { name: '上证指数', price: 3247.56, pct: 1.23, change: 39.45 },
+    { name: '深证成指', price: 10234.78, pct: 1.87, change: 187.32 },
+    { name: '创业板指', price: 2156.43, pct: 2.45, change: 51.62 },
+    { name: '沪深300', price: 3892.15, pct: 0.98, change: 37.81 },
+    { name: '中证500', price: 5678.90, pct: 1.56, change: 87.23 },
+  ],
+};
+/* 本地规则引擎：根据持仓 + 风险偏好生成建议（确定性伪随机，无需网络） */
+function buildLocalAdvice(holdings, settings) {
+  const risk = (settings && settings.riskTolerance) || '稳健';
+  const riskBonus = risk === '进取' ? 5 : risk === '保守' ? -5 : 0;
+  const seed = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+  const funds = (holdings || []).map((h) => {
+    const s = seed(h.code || h.name || h.id);
+    const todayPct = +(((s % 600) - 200) / 100).toFixed(2);          // -2.00% ~ +3.99%
+    const nav = +(h.costNav * (1 + ((s % 40) - 10) / 300)).toFixed(4); // 相对成本 -3.3% ~ +9.6%
+    const profitPct = +((nav / h.costNav - 1) * 100).toFixed(2);
+    const marketValue = +(h.shares * nav).toFixed(2);
+    const profit = +(marketValue - h.shares * h.costNav).toFixed(2);
+    let signal, signalReason;
+    if (profitPct >= 15) { signal = '止盈(部分)'; signalReason = '涨幅较大，建议分批止盈'; }
+    else if (profitPct >= 8) { signal = '观望'; signalReason = '收益尚可，持有为主'; }
+    else if (profitPct <= -8) { signal = '可加仓'; signalReason = '回调较深，可分批布局'; }
+    else if (profitPct <= -3) { signal = '减仓/止损评估'; signalReason = '浮亏扩大，评估是否止损'; }
+    else { signal = '持有'; signalReason = '波动在合理区间'; }
+    return { code: h.code, name: h.name, marketValue, nav, estNav: nav, estimateAvailable: true, todayPct, todaySource: 'estimate', trends: { '1m': +(profitPct * 0.6).toFixed(2), '3m': +profitPct.toFixed(2) }, profitPct, profit, weightPct: 0, signal, signalReason };
+  });
+  const totalValue = funds.reduce((a, f) => a + f.marketValue, 0) || 1;
+  funds.forEach((f) => { f.weightPct = +(f.marketValue / totalValue * 100).toFixed(1); });
+  const costBase = (holdings || []).reduce((a, h) => a + h.shares * h.costNav, 0) || 1;
+  const totalProfitPct = +((totalValue / costBase - 1) * 100).toFixed(2);
+  const todayW = funds.reduce((a, f) => a + f.todayPct * f.weightPct, 0) / 100;
+  const score = Math.max(20, Math.min(95, Math.round(50 + todayW * 6 + riskBonus)));
+  const level = score >= 80 ? '偏积极' : score >= 70 ? '中性偏多' : score >= 60 ? '中性' : score >= 48 ? '偏谨慎' : '谨慎';
+  const color = score >= 70 ? '#0d9488' : score >= 55 ? '#d97706' : '#dc2626';
+  const operations = funds.slice(0, 4).map((f) => `${f.name}：${f.signal === '可加仓' ? '可小幅加仓' : f.signal === '止盈(部分)' ? '建议减仓1/3锁定收益' : f.signal === '减仓/止损评估' ? '关注止损线，控制回撤' : '持仓观望，等待更好价位'}`);
+  const risks = [
+    '市场波动加大，注意控制仓位',
+    '板块轮动加快，避免追涨杀跌',
+    risk === '进取' ? '组合偏进取，回撤容忍度需提前设定' : '保持组合分散，降低单一基金依赖',
+  ];
+  const summary = `今日组合估算 ${fmtPct(todayW)}，综合评分 ${score} 分（${level}）。${risk === '进取' ? '当前风险偏好为进取，可关注景气赛道回调后的布局机会。' : '建议维持稳健配置，关注低估值品种的配置价值。'}`;
+  return {
+    date: todayStr(), generatedAt: Date.now(), isTradingDay: isTradingDay(),
+    overall: { score, level, color, summary, operations, risks },
+    ai: { enabled: false, text: '' },
+    portfolio: { totalValue: +totalValue.toFixed(2), totalProfitPct, todayPctWeighted: +todayW.toFixed(2), todayProfit: +(totalValue * todayW / 100).toFixed(2), fundCount: funds.length, hasEstimate: true },
+    funds,
+  };
+}
+function buildLocalAdviceForHistory(holdings, settings, his) {
+  const base = buildLocalAdvice(holdings, settings);
+  base.date = his.date;
+  base.overall.score = his.score;
+  base.overall.level = his.level;
+  base.overall.color = his.score >= 70 ? '#0d9488' : his.score >= 55 ? '#d97706' : '#dc2626';
+  return base;
+}
+/* 纯前端 API 路由：数据持久化到 localStorage */
+async function staticApi(path, opts = {}) {
+  await new Promise((r) => setTimeout(r, 120));
+  const d = lsLoad();
+  const method = (opts.method || 'GET').toUpperCase();
+  if (!Array.isArray(d.holdings)) d.holdings = [];
+  if (!d.settings) d.settings = { riskTolerance: '稳健', schedule: { time: '14:30', enabled: true } };
+  if (!Array.isArray(d.history)) d.history = [];
+  if (!Array.isArray(d.ops)) d.ops = [];
+  lsSave(d);
+
+  if (path === '/api/status') {
+    return { now: { date: todayStr(), time: nowHM(), tradingDay: isTradingDay(), withinTradingHours: false }, schedule: d.settings.schedule, todayAdviceGenerated: !!d.history.find((h) => h.date === todayStr()), generating: false, aiEnabled: false, visionEnabled: false };
+  }
+  if (path === '/api/market') return { market: LOCAL_MARKET };
+  if (path === '/api/settings') {
+    if (method === 'PUT') { d.settings = opts.body; lsSave(d); return { settings: d.settings }; }
+    return d.settings;
+  }
+  if (path === '/api/holdings' && method === 'GET') return d.holdings;
+  if (path === '/api/holdings' && method === 'POST') {
+    const h = { id: String(Date.now()), ...opts.body }; d.holdings.push(h); lsSave(d); return h;
+  }
+  if (path === '/api/holdings/import' && method === 'POST') {
+    let added = 0;
+    for (const row of opts.body.rows) {
+      const code = String(row.code).trim();
+      const exist = d.holdings.find((x) => x.code === code);
+      if (exist) {
+        exist.shares = Number(row.shares); exist.costNav = Number(row.costNav);
+        if (row.name) exist.name = row.name; if (row.note) exist.note = row.note;
+      } else {
+        d.holdings.push({ id: String(Date.now()) + added, code, name: row.name || '未知基金', shares: Number(row.shares), costNav: Number(row.costNav), note: row.note || '' });
+        added++;
+      }
+    }
+    lsSave(d); return { ok: true, addedCount: added };
+  }
+  if (path === '/api/holdings/ops') {
+    if (method === 'POST') {
+      const h = d.holdings.find((x) => x.code === opts.body.code);
+      const op = { id: String(Date.now()), code: opts.body.code, name: h ? h.name : '', type: opts.body.type, amount: opts.body.amount, status: 'pending', effDate: todayStr() };
+      d.ops.push(op); lsSave(d); return { op };
+    }
+    return { ops: d.ops };
+  }
+  const idMatch = path.match(/^\/api\/holdings\/([^/]+)$/);
+  if (idMatch && method === 'PUT') {
+    const i = d.holdings.findIndex((x) => x.id === idMatch[1]);
+    if (i >= 0) { d.holdings[i] = { ...d.holdings[i], ...opts.body }; lsSave(d); return d.holdings[i]; }
+  }
+  if (idMatch && method === 'DELETE') {
+    d.holdings = d.holdings.filter((x) => x.id !== idMatch[1]); lsSave(d); return { ok: true };
+  }
+  if (path.startsWith('/api/advice/history')) return { list: d.history };
+  if (path === '/api/advice/generate' && method === 'POST') {
+    const rec = buildLocalAdvice(d.holdings, d.settings);
+    const idx = d.history.findIndex((h) => h.date === rec.date);
+    const item = { date: rec.date, score: rec.overall.score, level: rec.overall.level, totalProfitPct: rec.portfolio.totalProfitPct, aiText: '' };
+    if (idx >= 0) d.history[idx] = item; else d.history.unshift(item);
+    d.history = d.history.slice(0, 30); lsSave(d);
+    return { record: rec, cached: false };
+  }
+  if (path.startsWith('/api/advice')) {
+    const dateQ = new URLSearchParams((path.split('?')[1] || '')).get('date');
+    if (dateQ) {
+      const his = d.history.find((h) => h.date === dateQ);
+      return { record: his ? buildLocalAdviceForHistory(d.holdings, d.settings, his) : null };
+    }
+    const todayRec = d.history.find((h) => h.date === todayStr());
+    return { record: todayRec ? buildLocalAdviceForHistory(d.holdings, d.settings, todayRec) : null };
+  }
+  if (path.startsWith('/api/fund/info')) throw new Error('静态版暂不支持实时基金查询，请手动填写基金名称');
+  if (path.startsWith('/api/holdings/import-image')) throw new Error('静态版不支持截图识别，请使用完整版（Node 服务）或手动添加');
+  return { ok: true };
+}
 const state = {
   status: null, market: null, holdings: [], advice: null, history: [], settings: null,
   editingId: null, viewingDate: null, generating: false, ocrRows: [], opState: null,
@@ -73,25 +218,33 @@ const MOCK = {
 };
 
 async function api(path, opts = {}) {
-  if (IS_DEMO) {
-    await new Promise((r) => setTimeout(r, 200));
-    if (path === '/api/status') return MOCK.status;
-    if (path === '/api/market') return { market: MOCK.market };
-    if (path === '/api/holdings') return MOCK.holdings;
-    if (path === '/api/advice/history') return { list: MOCK.history };
-    if (path.startsWith('/api/advice')) return { record: MOCK.advice };
-    if (path === '/api/settings') return MOCK.settings;
-    if (path === '/api/holdings/ops') return { ops: [] };
-    return { ok: true };
+  if (STATIC_MODE) return staticApi(path, opts);
+  try {
+    const res = await fetch(path, {
+      method: opts.method || 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok && data.ok !== true) {
+      // 静态托管场景：/api/* 返回 404/405 → 自动切换纯前端模式
+      if (res.status === 404 || res.status === 405) {
+        console.warn('后端接口不可用（' + res.status + '），已自动切换纯前端模式');
+        STATIC_MODE = true;
+        return staticApi(path, opts);
+      }
+      throw new Error(data.error || `请求失败 (${res.status})`);
+    }
+    return data;
+  } catch (e) {
+    // 后端完全不可达（file:// 或服务未启动）→ 自动回退纯前端模式
+    if (e instanceof TypeError && !STATIC_MODE) {
+      console.warn('后端不可达，已自动切换纯前端模式');
+      STATIC_MODE = true;
+      return staticApi(path, opts);
+    }
+    throw e;
   }
-  const res = await fetch(path, {
-    method: opts.method || 'GET',
-    headers: { 'Content-Type': 'application/json' },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok && data.ok !== true) throw new Error(data.error || `请求失败 (${res.status})`);
-  return data;
 }
 
 function fmtPct(p, digits = 2) {
@@ -509,6 +662,7 @@ function renderOcrRows(rows) {
 }
 
 async function handleOcrFile(file) {
+  if (STATIC_MODE) { toast('纯前端版不支持截图识别，请使用完整版（Node 服务）或手动添加持仓', true); return; }
   openOcrModal();
   try {
     const blob = await compressImage(file); // 压缩后上传，提速且兼容 AI 接口体积限制
