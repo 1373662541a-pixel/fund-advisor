@@ -276,7 +276,7 @@ async function loadOps() {
     if (!el) return;
     if (!pending.length) { el.innerHTML = ''; return; }
     el.innerHTML = pending.map((o) =>
-      `<span class="chip warn">⏳ ${esc(o.name)} ${o.type === 'add' ? '加仓' : '减仓'}${o.amount}元 · 预计 ${o.effDate} 生效</span>`
+      `<span class="chip warn">${esc(o.name)} ${o.type === 'add' ? '加仓' : '减仓'} ${o.amount}元 · 预计 ${o.effDate} 生效</span>`
     ).join(' ');
   } catch (e) { console.warn('loadOps:', e); }
 }

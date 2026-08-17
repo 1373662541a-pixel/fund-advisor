@@ -8,14 +8,22 @@
 </head>
 <body>
 <header>
-  <div class="brand">📈 基金投资分析助手</div>
+  <div class="brand">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="12" width="4" height="9" rx="1.2" fill="currentColor" opacity=".45"/>
+      <rect x="10" y="7" width="4" height="14" rx="1.2" fill="currentColor" opacity=".72"/>
+      <rect x="17" y="3" width="4" height="18" rx="1.2" fill="currentColor"/>
+      <path d="M2.5 20.5h19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+    基金投资分析助手
+  </div>
   <div class="status-bar">
     <span class="chip" id="st-date">--</span>
     <span class="chip" id="st-market-state">--</span>
     <span class="chip" id="st-schedule">--</span>
     <span class="chip" id="st-ai">AI: 未启用</span>
     <span class="chip" id="st-vision">识别: 本地OCR</span>
-    <button id="btn-generate" class="btn primary">⚡ 立即生成今日建议</button>
+    <button id="btn-generate" class="btn primary">立即生成今日建议</button>
   </div>
 </header>
 
@@ -33,6 +41,12 @@
         <div class="score-card">
           <div class="dial-wrap">
             <svg viewBox="0 0 120 120" class="dial">
+              <defs>
+                <linearGradient id="dialGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#14b8a6"/>
+                  <stop offset="100%" stop-color="#0f766e"/>
+                </linearGradient>
+              </defs>
               <circle cx="60" cy="60" r="52" class="dial-bg"/>
               <circle cx="60" cy="60" r="52" class="dial-val" id="dial-val"/>
             </svg>
@@ -46,7 +60,10 @@
         <div class="advice-main">
           <div id="advice-summary" class="summary"></div>
           <div id="ai-box" class="ai-box hidden">
-            <div class="ai-title">🤖 AI 解读</div>
+            <div class="ai-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+              AI 解读
+            </div>
             <div id="ai-text" class="ai-text"></div>
             <div id="ai-error" class="muted small"></div>
           </div>
@@ -78,11 +95,11 @@
     <div id="pending-ops" class="pending-ops"></div>
     <div class="toolbar">
       <button id="btn-add" class="btn">＋ 添加持仓</button>
-      <button id="btn-import" class="btn">⬆ 上传 CSV/Excel</button>
+      <button id="btn-import" class="btn">上传 CSV/Excel</button>
       <input type="file" id="file-input" accept=".csv,.xlsx,.xls" class="hidden">
-      <button id="btn-ocr" class="btn">📷 识别持仓截图</button>
+      <button id="btn-ocr" class="btn">识别持仓截图</button>
       <input type="file" id="file-ocr" accept="image/*" class="hidden">
-      <a id="btn-template" class="btn" href="/template.csv" download>⬇ 下载模板</a>
+      <a id="btn-template" class="btn" href="/template.csv" download>下载模板</a>
       <span class="muted small">模板列：基金代码、基金名称、持有份额、成本净值、备注（同代码上传会合并更新）；截图识别支持支付宝/天天基金等持仓截图，识别后请核对补全份额与成本。</span>
     </div>
     <div id="holdings-empty" class="empty">还没有持仓，点「添加持仓」或「上传 CSV/Excel」开始。</div>
@@ -145,7 +162,7 @@
 <div id="ocr-modal" class="modal hidden">
   <div class="modal-box wide">
     <h3 id="ocr-title">识别持仓截图</h3>
-    <div id="ocr-loading" class="empty">⏳ 正在识别图片中的基金…（首次需加载中文字库，可能约 1 分钟；之后会快很多）</div>
+    <div id="ocr-loading" class="empty">正在识别图片中的基金…（首次需加载中文字库，可能约 1 分钟；之后会快很多）</div>
     <div id="ocr-result" class="hidden">
       <p class="muted small" id="ocr-hint"></p>
       <p class="muted small">识别方式：按代码=截图里有基金代码；按名称=截图只有名称（已与 2.7 万只基金名称库匹配）；代码+名称=两者互相印证。若截图只有「持有金额/持有收益率」，系统会自动按当日净值推算「持有份额」「成本净值」（标"自动"），请核对后导入。</p>
