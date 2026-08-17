@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基金投资分析助手</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">📈 基金投资分析助手</div>
+  <div class="status-bar">
+    <span class="chip" id="st-date">--</span>
+    <span class="chip" id="st-market-state">--</span>
+    <span class="chip" id="st-schedule">--</span>
+    <span class="chip" id="st-ai">AI: 未启用</span>
+    <span class="chip" id="st-vision">识别: 本地OCR</span>
+    <button id="btn-generate" class="btn primary">⚡ 立即生成今日建议</button>
+  </div>
+</header>
+
+<main>
+  <section id="market-section">
+    <h2>大盘行情 <span class="muted" id="market-time"></span></h2>
+    <div id="market-cards" class="cards"><div class="empty small">加载中…</div></div>
+  </section>
+
+  <section id="advice-section">
+    <h2>今日建议 <span class="muted" id="advice-date"></span></h2>
+    <div id="advice-empty" class="empty">今天还没有生成建议：每个交易日到设定时间会自动生成，也可以点击右上角「立即生成今日建议」。</div>
+    <div id="advice-body" class="hidden">
+      <div class="advice-grid">
+        <div class="score-card">
+          <div class="dial-wrap">
+            <svg viewBox="0 0 120 120" class="dial">
+              <circle cx="60" cy="60" r="52" class="dial-bg"/>
+              <circle cx="60" cy="60" r="52" class="dial-val" id="dial-val"/>
+            </svg>
+            <div class="dial-center">
+              <div class="dial-num" id="score-num">--</div>
+              <div class="dial-level" id="score-level">--</div>
+            </div>
+          </div>
+          <div class="score-note">综合评分</div>
+        </div>
+        <div class="advice-main">
+          <div id="advice-summary" class="summary"></div>
+          <div id="ai-box" class="ai-box hidden">
+            <div class="ai-title">🤖 AI 解读</div>
+            <div id="ai-text" class="ai-text"></div>
+            <div id="ai-error" class="muted small"></div>
+          </div>
+        </div>
+      </div>
+      <div class="advice-cols">
+        <div class="col">
+          <h3>今日操作要点</h3>
+          <ul id="advice-operations" class="ops"></ul>
+        </div>
+        <div class="col">
+          <h3>风险提示</h3>
+          <ul id="advice-risks" class="risks"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="charts-section" class="hidden">
+    <h2>资产分布</h2>
+    <div class="charts">
+      <div class="chart" id="pie-chart"></div>
+    </div>
+  </section>
+
+  <section id="holdings-section">
+    <h2>我的持仓 <span class="muted" id="holdings-count"></span></h2>
+    <div id="portfolio-summary" class="portfolio-summary"></div>
+    <div id="pending-ops" class="pending-ops"></div>
+    <div class="toolbar">
+      <button id="btn-add" class="btn">＋ 添加持仓</button>
+      <button id="btn-import" class="btn">⬆ 上传 CSV/Excel</button>
+      <input type="file" id="file-input" accept=".csv,.xlsx,.xls" class="hidden">
+      <button id="btn-ocr" class="btn">📷 识别持仓截图</button>
+      <input type="file" id="file-ocr" accept="image/*" class="hidden">
+      <a id="btn-template" class="btn" href="/template.csv" download>⬇ 下载模板</a>
+      <span class="muted small">模板列：基金代码、基金名称、持有份额、成本净值、备注（同代码上传会合并更新）；截图识别支持支付宝/天天基金等持仓截图，识别后请核对补全份额与成本。</span>
+    </div>
+    <div id="holdings-empty" class="empty">还没有持仓，点「添加持仓」或「上传 CSV/Excel」开始。</div>
+    <div id="holdings-table-wrap" class="hidden">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>基金</th><th>代码</th><th>持有份额</th><th>成本净值</th><th>最新净值</th><th>今日</th><th>近1月</th><th>近3月</th><th>累计盈亏</th><th>占比</th><th>操作信号</th><th class="th-actions">操作</th>
+          </tr></thead>
+          <tbody id="holdings-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="history-section">
+    <h2>历史建议</h2>
+    <div id="history-list" class="history-list"><div class="empty small">暂无历史记录</div></div>
+  </section>
+
+  <section id="settings-section">
+    <h2>设置</h2>
+    <form id="settings-form" class="settings-form">
+      <label>风险偏好
+        <select id="set-risk">
+          <option value="保守">保守</option>
+          <option value="稳健">稳健</option>
+          <option value="进取">进取</option>
+        </select>
+      </label>
+      <label>建议每日生成时间 <input type="time" id="set-sched-time" value="14:30"></label>
+      <button type="submit" class="btn primary">保存设置</button>
+      <span class="muted small">AI 解读与截图识别已启用，无需在此配置。</span>
+    </form>
+  </section>
+</main>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-box">
+    <h3 id="modal-title">添加持仓</h3>
+    <form id="holding-form">
+      <label>基金代码（6 位数字）
+        <div class="code-row">
+          <input id="f-code" required pattern="\d{6}" placeholder="如 110022" maxlength="6">
+          <button type="button" id="f-lookup" class="btn small">查询名称</button>
+        </div>
+      </label>
+      <label>基金名称 <input id="f-name" placeholder="自动填充或手动填写"></label>
+      <label>持有份额 <input id="f-shares" type="number" step="0.0001" min="0" required placeholder="如 10000"></label>
+      <label>成本净值 <input id="f-costnav" type="number" step="0.0001" min="0" required placeholder="如 2.5"></label>
+      <label>备注 <input id="f-note" placeholder="可选"></label>
+      <div class="modal-actions">
+        <button type="button" id="f-cancel" class="btn">取消</button>
+        <button type="submit" class="btn primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="ocr-modal" class="modal hidden">
+  <div class="modal-box wide">
+    <h3 id="ocr-title">识别持仓截图</h3>
+    <div id="ocr-loading" class="empty">⏳ 正在识别图片中的基金…（首次需加载中文字库，可能约 1 分钟；之后会快很多）</div>
+    <div id="ocr-result" class="hidden">
+      <p class="muted small" id="ocr-hint"></p>
+      <p class="muted small">识别方式：按代码=截图里有基金代码；按名称=截图只有名称（已与 2.7 万只基金名称库匹配）；代码+名称=两者互相印证。若截图只有「持有金额/持有收益率」，系统会自动按当日净值推算「持有份额」「成本净值」（标"自动"），请核对后导入。</p>
+      <div class="table-wrap ocr-scroll">
+        <table>
+          <thead><tr><th></th><th>基金</th><th>代码</th><th>识别方式</th><th>持有金额</th><th>持有份额</th><th>成本净值</th></tr></thead>
+          <tbody id="ocr-rows"></tbody>
+        </table>
+      </div>
+      <details class="small"><summary>查看识别原文</summary><pre id="ocr-raw" class="ocr-raw"></pre></details>
+      <div class="modal-actions">
+        <button type="button" id="ocr-reupload" class="btn">换一张</button>
+        <button type="button" id="ocr-cancel" class="btn">取消</button>
+        <button type="button" id="ocr-confirm" class="btn primary">确认导入</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="op-modal" class="modal hidden">
+  <div class="modal-box">
+    <h3 id="op-title">加仓</h3>
+    <form id="op-form">
+      <label>基金 <input id="op-name" readonly></label>
+      <label>操作金额（元）<input id="op-amount" type="number" min="1" step="0.01" required placeholder="如 1000"></label>
+      <p class="muted small" id="op-hint">将在下一个交易日按当日净值自动更新持仓，并同步刷新 AI 建议与总结。</p>
+      <div class="modal-actions">
+        <button type="button" id="op-cancel" class="btn">取消</button>
+        <button type="submit" class="btn primary">确认操作</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/vendor/xlsx.full.min.js"></script>
+<script src="/vendor/echarts.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
