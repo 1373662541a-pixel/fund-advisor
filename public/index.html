@@ -28,6 +28,11 @@
 </header>
 
 <main>
+  <section id="overview-section">
+    <h2>组合总览</h2>
+    <div id="portfolio-summary" class="portfolio-summary"></div>
+  </section>
+  <div class="grid-2">
   <section id="market-section">
     <h2>大盘行情 <span class="muted" id="market-time"></span></h2>
     <div id="market-cards" class="cards"><div class="empty small">加载中…</div></div>
@@ -81,17 +86,9 @@
       </div>
     </div>
   </section>
-
-  <section id="charts-section" class="hidden">
-    <h2>资产分布</h2>
-    <div class="charts">
-      <div class="chart" id="pie-chart"></div>
-    </div>
-  </section>
-
+  </div>
   <section id="holdings-section">
     <h2>我的持仓 <span class="muted" id="holdings-count"></span></h2>
-    <div id="portfolio-summary" class="portfolio-summary"></div>
     <div id="pending-ops" class="pending-ops"></div>
     <div class="toolbar">
       <button id="btn-add" class="btn">＋ 添加持仓</button>
@@ -115,10 +112,19 @@
     </div>
   </section>
 
+  <div class="grid-2">
+  <section id="charts-section" class="hidden">
+    <h2>资产分布</h2>
+    <div class="charts">
+      <div class="chart" id="pie-chart"></div>
+    </div>
+  </section>
+
   <section id="history-section">
     <h2>历史建议</h2>
     <div id="history-list" class="history-list"><div class="empty small">暂无历史记录</div></div>
   </section>
+  </div>
 
   <section id="settings-section">
     <h2>设置</h2>

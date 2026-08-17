@@ -102,18 +102,26 @@ header {
 .chip.ok { background: #e5f6ee; border-color: #bfe8d6; color: #0b6e4f; }
 
 /* ---------- 4. 布局 ---------- */
-main { max-width: 1120px; margin: 0 auto; padding: 22px 16px 80px; }
+main { max-width: 1360px; margin: 0 auto; padding: 26px 20px 90px; }
 section {
   background: rgba(255, 255, 255, .62);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, .72);
   border-radius: var(--r-card);
-  padding: 18px 20px;
-  margin-bottom: 16px;
+  padding: 22px 24px;
+  margin-bottom: 20px;
   box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .8);
   animation: sec-in .5s var(--ease) both;
 }
+/* 两栏网格（大盘行情+今日建议 / 资产分布+历史建议） */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.grid-2 section { margin-bottom: 0; }
 @keyframes sec-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 h2 {
   font-size: 15px; font-weight: 700; margin-bottom: 14px;
@@ -205,16 +213,21 @@ h3 { font-size: 13.5px; font-weight: 700; margin: 14px 0 8px; }
 .risks li::marker { color: var(--gold); }
 .risks li { color: #6b4a12; }
 
-/* 组合汇总 */
+/* 组合总览大卡 */
 .portfolio-summary {
-  display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline;
-  font-size: 13.5px; background: rgba(255, 255, 255, .55);
-  border: 1px solid rgba(255, 255, 255, .7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 12px; padding: 10px 14px; margin-bottom: 10px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  background: linear-gradient(135deg, rgba(15, 118, 110, .12), rgba(255, 255, 255, .6) 55%);
+  border: 1px solid rgba(15, 118, 110, .16);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border-radius: var(--r-card); padding: 20px 22px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8);
 }
-.portfolio-summary b { font-variant-numeric: tabular-nums; font-weight: 700; }
+.ps-item { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ps-item + .ps-item { border-left: 1px solid rgba(15, 118, 110, .14); padding-left: 18px; }
+.ps-label { font-size: 12px; color: var(--muted); font-weight: 500; letter-spacing: .02em; }
+.ps-value { font-size: 27px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; color: var(--text); line-height: 1.15; white-space: nowrap; }
+.ps-sub { font-style: normal; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 1px; }
 .pending-ops { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .pending-ops .chip { background: #fdf6e3; border-color: #f0e0b8; color: #8a6100; }
 
@@ -372,6 +385,9 @@ details.small summary:hover { color: var(--accent); }
 @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 
 /* ---------- 17. 响应式 ---------- */
+@media (max-width: 900px) {
+  .grid-2 { grid-template-columns: 1fr; }
+}
 @media (max-width: 720px) {
   header { padding: 10px 14px; }
   main { padding: 14px 12px 60px; }
@@ -382,6 +398,12 @@ details.small summary:hover { color: var(--accent); }
   .chart { height: 260px; }
   .cards { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
   .modal-box { padding: 18px; }
+  /* 组合总览大卡：2 列 */
+  .portfolio-summary { grid-template-columns: repeat(2, 1fr); gap: 10px 0; padding: 16px; }
+  .ps-item { padding: 4px 14px !important; }
+  .ps-item:nth-child(3) { border-left: none !important; padding-left: 14px !important; }
+  .ps-item:nth-child(n+3) { border-top: 1px solid rgba(15, 118, 110, .12); padding-top: 10px; }
+  .ps-value { font-size: 22px; }
 }
 
 /* ---------- 18. 减少动效偏好 ---------- */

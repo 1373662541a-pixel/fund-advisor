@@ -123,9 +123,11 @@ function renderAdvice() {
   dateEl.textContent = `（${r.date} 生成于 ${r.generatedAt ? new Date(r.generatedAt).toLocaleString('zh-CN', { hour12: false }) : '--'}${r.isTradingDay ? '' : ' · 非交易日快照'}）`;
 
   const score = r.overall.score;
-  const color = r.overall.color || '#2563eb';
+  const color = r.overall.color || '#0f766e';
   const val = $('#dial-val');
-  val.style.stroke = color;
+  // 评分环渐变描边：颜色随评分状态变化（由 CSS 的 #dialGrad 引用）
+  const stops = document.querySelectorAll('#dialGrad stop');
+  if (stops.length) { stops[0].setAttribute('stop-color', color); stops[1].setAttribute('stop-color', color); }
   val.style.strokeDasharray = `${(score / 100) * DIAL_C} ${DIAL_C}`;
   $('#score-num').textContent = score;
   $('#score-level').textContent = r.overall.level;
@@ -177,10 +179,11 @@ function renderHoldings() {
   const ps = $('#portfolio-summary');
   if (ps) {
     if (p && p.fundCount) {
-      ps.innerHTML = `总市值 <b>${fmtWan(p.totalValue)}</b> ｜ 累计盈亏 <b class="${pctClass(p.totalProfitPct)}">${fmtPct(p.totalProfitPct)}</b>
-      ｜ ${p.hasEstimate ? '今日估算' : '最近净值变动'} <b class="${pctClass(p.todayPctWeighted)}">${fmtPct(p.todayPctWeighted)}</b>
-      ${p.todayProfit != null ? `（约 <b class="${pctClass(p.todayProfit)}">${p.todayProfit > 0 ? '+' : ''}${fmtWan(p.todayProfit)}</b>）` : ''}
-      ｜ 共 ${p.fundCount || 0} 只基金`;
+      ps.innerHTML = `
+        <div class="ps-item"><span class="ps-label">总市值</span><b class="ps-value">${fmtWan(p.totalValue)}</b></div>
+        <div class="ps-item"><span class="ps-label">累计盈亏</span><b class="ps-value ${pctClass(p.totalProfitPct)}">${fmtPct(p.totalProfitPct)}</b></div>
+        <div class="ps-item"><span class="ps-label">${p.hasEstimate ? '今日估算' : '最近净值变动'}</span><b class="ps-value ${pctClass(p.todayPctWeighted)}">${fmtPct(p.todayPctWeighted)}</b>${p.todayProfit != null ? `<em class="ps-sub ${pctClass(p.todayProfit)}">约 ${p.todayProfit > 0 ? '+' : ''}${fmtWan(p.todayProfit)}</em>` : ''}</div>
+        <div class="ps-item"><span class="ps-label">基金数量</span><b class="ps-value">${p.fundCount || 0}只</b></div>`;
       ps.classList.remove('hidden');
     } else {
       ps.innerHTML = '';
