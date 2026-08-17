@@ -46,7 +46,7 @@ function buildLocalAdvice(holdings, settings) {
   const todayW = funds.reduce((a, f) => a + f.todayPct * f.weightPct, 0) / 100;
   const score = Math.max(20, Math.min(95, Math.round(50 + todayW * 6 + riskBonus)));
   const level = score >= 80 ? '偏积极' : score >= 70 ? '中性偏多' : score >= 60 ? '中性' : score >= 48 ? '偏谨慎' : '谨慎';
-  const color = score >= 70 ? '#0d9488' : score >= 55 ? '#d97706' : '#dc2626';
+  const color = score >= 70 ? '#dc2626' : score >= 55 ? '#d97706' : '#64748b';
   const operations = funds.slice(0, 4).map((f) => `${f.name}：${f.signal === '可加仓' ? '可小幅加仓' : f.signal === '止盈(部分)' ? '建议减仓1/3锁定收益' : f.signal === '减仓/止损评估' ? '关注止损线，控制回撤' : '持仓观望，等待更好价位'}`);
   const risks = [
     '市场波动加大，注意控制仓位',
@@ -67,7 +67,7 @@ function buildLocalAdviceForHistory(holdings, settings, his) {
   base.date = his.date;
   base.overall.score = his.score;
   base.overall.level = his.level;
-  base.overall.color = his.score >= 70 ? '#0d9488' : his.score >= 55 ? '#d97706' : '#dc2626';
+  base.overall.color = his.score >= 70 ? '#dc2626' : his.score >= 55 ? '#d97706' : '#64748b';
   return base;
 }
 /* 纯前端 API 路由：数据持久化到 localStorage */
@@ -180,7 +180,7 @@ const MOCK = {
   advice: {
     date: '2026-08-18', generatedAt: Date.now(), isTradingDay: true,
     overall: {
-      score: 72, level: '中性偏多', color: '#0d9488',
+      score: 72, level: '中性偏多', color: '#dc2626',
       summary: '当前市场情绪回暖，消费与科技板块共振上行。组合整体估值处于合理区间，建议维持现有仓位结构，对短期涨幅较大的品种可适度止盈，同时关注低位补涨机会。',
       operations: [
         '易方达消费行业：持仓观望，等待回调至3.15以下可考虑加仓',
@@ -372,7 +372,7 @@ function renderAdvice() {
   dateEl.textContent = `（${r.date} 生成于 ${r.generatedAt ? new Date(r.generatedAt).toLocaleString('zh-CN', { hour12: false }) : '--'}${r.isTradingDay ? '' : ' · 非交易日快照'}）`;
 
   const score = r.overall.score;
-  const color = r.overall.color || '#0f766e';
+  const color = r.overall.color || '#dc2626';
   const val = $('#dial-val');
   // 评分环渐变描边：颜色随评分状态变化（由 CSS 的 #dialGrad 引用）
   const stops = document.querySelectorAll('#dialGrad stop');
