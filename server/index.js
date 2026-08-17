@@ -6,7 +6,7 @@ import { PORT, PUBLIC_DIR, ROOT } from './config.js';
 import { store } from './storage.js';
 import { generateAdvice, isGenerating, getLastRun } from './service.js';
 import { startScheduler } from './scheduler.js';
-import { getFundQuote, getIndexQuotes, clearFundCache } from './market.js';
+import { getFundQuote, getIndexQuotes, clearFundCache, getStockIndices, getHotNews } from './market.js';
 import { recognizeImage, parseFunds } from './ocr.js';
 import { recognizeWithAI } from './vision.js';
 import { settlePendingOps } from './ops.js';
@@ -313,6 +313,26 @@ app.get('/api/market', async (req, res) => {
     res.json({ ok: true, market });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ---------- 股票大盘（A股指数） ----------
+app.get('/api/stock/indices', async (req, res) => {
+  try {
+    const data = await getStockIndices();
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: e.message });
+  }
+});
+
+// ---------- 热点新闻（财经快讯） ----------
+app.get('/api/stock/news', async (req, res) => {
+  try {
+    const data = await getHotNews();
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: e.message });
   }
 });
 

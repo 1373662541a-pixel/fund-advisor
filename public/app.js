@@ -536,6 +536,64 @@ async function loadOps() {
 /* ---------- 数据加载 ---------- */
 async function loadStatus() { try { state.status = await api('/api/status'); renderStatus(); } catch (e) { console.warn(e); } }
 async function loadMarket() { try { state.market = (await api('/api/market')).market; renderMarket(); } catch (e) { console.warn(e); } }
+async function loadStockIndices() {
+  const el = $('#stock-indices'), tm = $('#stock-indices-time');
+  try {
+    const r = await api('/api/stock/indices');
+    if (!r.ok) throw new Error(r.error || '加载失败');
+    const list = r.list || [];
+    if (!list.length) throw new Error('无数据');
+    el.innerHTML = '';
+    for (const i of list) {
+      const up = i.pct >= 0;
+      const cls = up ? 'up' : 'down';
+      const arrow = up ? '▲' : '▼';
+      const chg = (i.change >= 0 ? '+' : '') + Number(i.change).toFixed(2);
+      el.insertAdjacentHTML('beforeend', `<div class="card index-card">
+        <div class="card-title">${esc(i.name)} <span class="muted small">${esc(i.code)}</span></div>
+        <div class="index-price ${cls}">${fmtNum(i.price)}</div>
+        <div class="pct ${cls}">${arrow} ${fmtPct(i.pct)} <span class="muted tiny">${chg}</span></div>
+        <div class="muted tiny">高 ${fmtNum(i.high)} · 低 ${fmtNum(i.low)}</div>
+      </div>`);
+    }
+    if (list[0] && list[0].time) {
+      const t = String(list[0].time);
+      tm.textContent = t.length >= 12 ? `${t.slice(0,4)}-${t.slice(4,6)}-${t.slice(6,8)} ${t.slice(8,10)}:${t.slice(10,12)}` : t;
+    }
+  } catch (e) {
+    el.innerHTML = '<div class="empty small">大盘数据暂不可用（需后端代理）</div>';
+    console.warn(e);
+  }
+}
+async function loadHotNews() {
+  const el = $('#news-list'), tm = $('#news-time');
+  try {
+    const r = await api('/api/stock/news');
+    if (!r.ok) throw new Error(r.error || '加载失败');
+    const list = r.list || [];
+    if (!list.length) throw new Error('无新闻');
+    el.innerHTML = '';
+    for (const n of list) {
+      const t = (n.time || '').toString();
+      const ts = t.length >= 16 ? t.slice(11, 16) : (t.length >= 5 ? t.slice(0, 5) : '');
+      const titleHtml = n.url
+        ? `<a class="news-title" href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a>`
+        : `<div class="news-title">${esc(n.title)}</div>`;
+      const digest = n.digest ? `<div class="news-digest">${esc(n.digest.slice(0, 110))}${n.digest.length > 110 ? '…' : ''}</div>` : '';
+      el.insertAdjacentHTML('beforeend', `<div class="news-item">
+        ${titleHtml}${digest}
+        <div class="news-meta"><span class="muted tiny">${ts}</span><span class="muted tiny">${r.source === 'sina' ? '新浪快讯' : '东方财富'}</span></div>
+      </div>`);
+    }
+    if (r.fetchedAt) {
+      const d = new Date(r.fetchedAt);
+      tm.textContent = `更新于 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+  } catch (e) {
+    el.innerHTML = '<div class="empty small">热点新闻暂不可用（需后端代理）</div>';
+    console.warn(e);
+  }
+}
 async function loadHoldings() { state.holdings = await api('/api/holdings'); renderHoldings(); }
 async function loadAdvice(date) {
   try {
@@ -850,7 +908,7 @@ function bindEvents() {
 /* ---------- 启动 ---------- */
 async function init() {
   bindEvents();
-  await Promise.all([loadStatus(), loadMarket(), loadHoldings(), loadAdvice(), loadHistory(), loadSettings(), loadOps()]);
+  await Promise.all([loadStatus(), loadMarket(), loadStockIndices(), loadHotNews(), loadHoldings(), loadAdvice(), loadHistory(), loadSettings(), loadOps()]);
   setInterval(() => {
     loadStatus();
     loadMarket();

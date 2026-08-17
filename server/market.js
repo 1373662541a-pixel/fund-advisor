@@ -219,3 +219,94 @@ export function clearFundCache(code) {
   quoteCache.delete(code);
   historyCache.delete(code);
 }
+
+// ---------- A股大盘指数（腾讯行情，GBK） ----------
+const STOCK_INDEX_CODES = [
+  { q: 'sh000001', name: '上证指数' },
+  { q: 'sz399001', name: '深证成指' },
+  { q: 'sz399006', name: '创业板指' },
+  { q: 'sh000300', name: '沪深300' },
+];
+export async function getStockIndices() {
+  const url = `https://qt.gtimg.cn/q=${STOCK_INDEX_CODES.map((i) => i.q).join(',')}`;
+  const res = await fetch(url, { headers: { 'User-Agent': UA, Referer: 'https://gu.qq.com/' } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  const text = new TextDecoder('gbk').decode(buf);
+  const list = [];
+  for (const line of text.split(';')) {
+    const m = line.match(/v_([a-z]+\d+)="([^"]*)"/);
+    if (!m || !m[2]) continue;
+    const f = m[2].split('~');
+    // 1名称 2代码 3最新 4昨收 5今开 30时间 31涨跌额 32涨跌幅 33最高 34最低 36成交量(手) 37成交额(万元)
+    const item = {
+      code: f[2],
+      name: f[1],
+      price: Number(f[3]),
+      prevClose: Number(f[4]),
+      open: Number(f[5]),
+      change: Number(f[31]),
+      pct: Number(f[32]),
+      high: Number(f[33]),
+      low: Number(f[34]),
+      volume: Number(f[36]),
+      amount: Number(f[37]),
+      time: f[30],
+    };
+    if (item.code) list.push(item);
+  }
+  return { list, fetchedAt: shNow().toISOString() };
+}
+
+// ---------- 热点新闻（东方财富快讯，新浪7x24备选） ----------
+async function fetchEastmoneyNews() {
+  const url = 'https://newsapi.eastmoney.com/kuaixun/v1/getlist_102_ajaxResult_50_1_.html';
+  const text = await fetchText(url, 'https://finance.eastmoney.com/');
+  const m = text.match(/var ajaxResult=(\{[\s\S]*\})/);
+  if (!m) throw new Error('东财快讯返回格式异常');
+  const json = JSON.parse(m[1]);
+  const items = (json.LivesList || []).map((n) => ({
+    id: n.id,
+    title: n.title || n.simtitle || '财经快讯',
+    digest: (n.digest || '').replace(/^【[^】]*】/, ''),
+    url: n.url_w || n.url_unique || null,
+    time: n.showtime || null,
+  }));
+  if (!items.length) throw new Error('东财快讯为空');
+  return items;
+}
+async function fetchSinaNews() {
+  const url = 'https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=20&zhibo_id=152&tag_id=0&dire=f&dpc=1';
+  const json = JSON.parse(await fetchText(url, 'https://finance.sina.com.cn/'));
+  const list = (json.result && json.result.data && json.result.data.feed && json.result.data.feed.list) || [];
+  return list.map((n) => {
+    let docUrl = null;
+    try {
+      const ext = JSON.parse(n.ext || '{}');
+      docUrl = ext.docurl || null;
+    } catch (e) { /* ignore */ }
+    const rich = n.rich_text || '';
+    return {
+      id: String(n.id),
+      title: rich.slice(0, 60),
+      digest: rich,
+      url: docUrl,
+      time: n.create_time || null,
+    };
+  });
+}
+export async function getHotNews() {
+  let items = [];
+  let source = 'eastmoney';
+  try {
+    items = await fetchEastmoneyNews();
+  } catch (e) {
+    try {
+      items = await fetchSinaNews();
+      source = 'sina';
+    } catch (e2) {
+      throw new Error(`新闻源不可用: ${e.message} / ${e2.message}`);
+    }
+  }
+  return { list: items.slice(0, 20), source, fetchedAt: shNow().toISOString() };
+}

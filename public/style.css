@@ -942,3 +942,16 @@ details.small summary:hover { color: var(--accent); }
   body { background: var(--bg); }
   body::before, body::after { display: none; }
 }
+
+/* ---------- 21. 股票大盘 + 热点新闻 ---------- */
+.index-card .index-price { font-size: 24px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+.index-card .card-title { font-size: 13px; }
+.index-card .pct { font-size: 13px; margin-top: 2px; }
+.index-card .tiny { font-size: 11px; margin-top: 2px; }
+.news-list { display: flex; flex-direction: column; gap: 10px; }
+.news-item { padding: 13px 16px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.72); backdrop-filter: blur(var(--glass-blur-sm)); -webkit-backdrop-filter: blur(var(--glass-blur-sm)); transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.news-item:hover { border-color: var(--accent-light); transform: translateY(-1px); }
+.news-title { display: block; font-weight: 600; font-size: 14px; color: var(--text); line-height: 1.5; }
+a.news-title:hover { color: var(--accent); }
+.news-digest { color: var(--text-2); font-size: 12px; line-height: 1.65; margin-top: 4px; }
+.news-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: var(--muted); }
