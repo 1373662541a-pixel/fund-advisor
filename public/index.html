@@ -8,7 +8,7 @@
 </head>
 <body>
 <header>
-  <div class="brand">
+  <h1 class="brand">
     <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect x="3" y="12" width="4" height="9" rx="1.2" fill="currentColor" opacity=".45"/>
       <rect x="10" y="7" width="4" height="14" rx="1.2" fill="currentColor" opacity=".72"/>
@@ -16,7 +16,7 @@
       <path d="M2.5 20.5h19" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
     </svg>
     基金投资分析助手
-  </div>
+  </h1>
   <div class="status-bar">
     <span class="chip" id="st-date">--</span>
     <span class="chip" id="st-market-state">--</span>
@@ -54,6 +54,20 @@
               </defs>
               <circle cx="60" cy="60" r="52" class="dial-bg"/>
               <circle cx="60" cy="60" r="52" class="dial-val" id="dial-val"/>
+              <g class="dial-ticks" aria-hidden="true">
+                <line class="tick major" x1="102" y1="60" x2="112" y2="60"/>
+                <line class="tick" x1="106" y1="60" x2="112" y2="60" transform="rotate(30 60 60)"/>
+                <line class="tick" x1="106" y1="60" x2="112" y2="60" transform="rotate(60 60 60)"/>
+                <line class="tick major" x1="102" y1="60" x2="112" y2="60" transform="rotate(90 60 60)"/>
+                <line class="tick" x1="106" y1="60" x2="112" y2="60" transform="rotate(120 60 60)"/>
+                <line class="tick" x1="106" y1="60" x2="112" y2="60" transform="rotate(150 60 60)"/>
+                <line class="tick major" x1="102" y1="60" x2="112" y2="60" transform="rotate(180 60 60)"/>
+                <line class="tick" x1="106" y1="60" x2="112" y2="60" transform="rotate(210 60 60)"/>
+                <line class="tick" x1="106" y1="60" x2="112" y2="60" transform="rotate(240 60 60)"/>
+                <line class="tick major" x1="102" y1="60" x2="112" y2="60" transform="rotate(270 60 60)"/>
+                <line class="tick" x1="106" y1="60" x2="112" y2="60" transform="rotate(300 60 60)"/>
+                <line class="tick" x1="106" y1="60" x2="112" y2="60" transform="rotate(330 60 60)"/>
+              </g>
             </svg>
             <div class="dial-center">
               <div class="dial-num" id="score-num">--</div>
@@ -130,13 +144,13 @@
     <h2>设置</h2>
     <form id="settings-form" class="settings-form">
       <label>风险偏好
-        <select id="set-risk">
+        <select id="set-risk" name="risk" autocomplete="off">
           <option value="保守">保守</option>
           <option value="稳健">稳健</option>
           <option value="进取">进取</option>
         </select>
       </label>
-      <label>建议每日生成时间 <input type="time" id="set-sched-time" value="14:30"></label>
+      <label>建议每日生成时间 <input type="time" id="set-sched-time" name="scheduleTime" autocomplete="off" value="14:30"></label>
       <button type="submit" class="btn primary">保存设置</button>
       <span class="muted small">AI 解读与截图识别已启用，无需在此配置。</span>
     </form>
@@ -149,14 +163,14 @@
     <form id="holding-form">
       <label>基金代码（6 位数字）
         <div class="code-row">
-          <input id="f-code" required pattern="\d{6}" placeholder="如 110022" maxlength="6">
+          <input id="f-code" name="code" required pattern="\d{6}" placeholder="如 110022…" maxlength="6" autocomplete="off">
           <button type="button" id="f-lookup" class="btn small">查询名称</button>
         </div>
       </label>
-      <label>基金名称 <input id="f-name" placeholder="自动填充或手动填写"></label>
-      <label>持有份额 <input id="f-shares" type="number" step="0.0001" min="0" required placeholder="如 10000"></label>
-      <label>成本净值 <input id="f-costnav" type="number" step="0.0001" min="0" required placeholder="如 2.5"></label>
-      <label>备注 <input id="f-note" placeholder="可选"></label>
+      <label>基金名称 <input id="f-name" name="name" placeholder="自动填充或手动填写…" autocomplete="off"></label>
+      <label>持有份额 <input id="f-shares" name="shares" type="number" step="0.0001" min="0" required placeholder="如 10000…" autocomplete="off"></label>
+      <label>成本净值 <input id="f-costnav" name="costNav" type="number" step="0.0001" min="0" required placeholder="如 2.5…" autocomplete="off"></label>
+      <label>备注 <input id="f-note" name="note" placeholder="可选" autocomplete="off"></label>
       <div class="modal-actions">
         <button type="button" id="f-cancel" class="btn">取消</button>
         <button type="submit" class="btn primary">保存</button>
@@ -193,7 +207,7 @@
     <h3 id="op-title">加仓</h3>
     <form id="op-form">
       <label>基金 <input id="op-name" readonly></label>
-      <label>操作金额（元）<input id="op-amount" type="number" min="1" step="0.01" required placeholder="如 1000"></label>
+      <label>操作金额（元）<input id="op-amount" name="amount" type="number" min="1" step="0.01" required placeholder="如 1000…" autocomplete="off"></label>
       <p class="muted small" id="op-hint">将在下一个交易日按当日净值自动更新持仓，并同步刷新 AI 建议与总结。</p>
       <div class="modal-actions">
         <button type="button" id="op-cancel" class="btn">取消</button>
