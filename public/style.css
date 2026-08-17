@@ -6,6 +6,12 @@
 
 /* ---------- 1. 设计令牌 ---------- */
 :root {
+  /* 毛玻璃模糊半径 — 变量化（触屏设备降级入口，见 §18.5） */
+  --glass-blur-xl: 32px;
+  --glass-blur-lg: 24px;
+  --glass-blur-md: 16px;
+  --glass-blur-sm: 8px;
+  --glass-blur-xs: 6px;
   /* 色板 — 深空青蓝系 */
   --bg: #eef2f7;
   --bg-soft: #e4ebf3;
@@ -89,13 +95,7 @@ html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 
 body {
   font-family: var(--font);
-  background:
-    radial-gradient(1000px 600px at 92% -10%, rgba(20, 184, 166, .22), transparent 60%),
-    radial-gradient(900px 500px at -8% 2%, rgba(37, 99, 235, .14), transparent 55%),
-    radial-gradient(800px 560px at 50% 115%, rgba(217, 119, 6, .10), transparent 58%),
-    radial-gradient(600px 400px at 25% -5%, rgba(124, 58, 237, .08), transparent 55%),
-    linear-gradient(180deg, #f0f4f9 0%, #e8eef5 50%, #eef2f8 100%);
-  background-attachment: fixed;
+  background: #eef2f7; /* 纯色底（滚动零重绘），渐变与网格由固定层渲染 */
   color: var(--text);
   line-height: 1.6;
   font-size: 14px;
@@ -148,8 +148,8 @@ header {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
   padding: 14px 28px;
   background: rgba(255, 255, 255, .65);
-  backdrop-filter: saturate(2) blur(24px);
-  -webkit-backdrop-filter: saturate(2) blur(24px);
+  backdrop-filter: saturate(2) blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: saturate(2) blur(var(--glass-blur-lg));
   border-bottom: 1px solid rgba(255, 255, 255, .7);
   box-shadow: 0 1px 16px rgba(15, 23, 42, .06), inset 0 1px 0 rgba(255, 255, 255, .8);
 }
@@ -178,8 +178,8 @@ header h1 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: .01em;
   border: 1px solid rgba(226, 232, 240, .8);
   border-radius: var(--r-pill); padding: 4px 12px;
   font-size: 12px; color: var(--text-2); font-weight: 600; white-space: nowrap;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   transition: all var(--dur-fast) var(--ease);
   box-shadow: var(--shadow-xs);
 }
@@ -200,8 +200,8 @@ main { max-width: 1400px; margin: 0 auto; padding: 28px 24px 100px; }
 
 section {
   background: rgba(255, 255, 255, .68);
-  backdrop-filter: blur(24px) saturate(1.8);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.8);
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(1.8);
   border: 1px solid rgba(255, 255, 255, .75);
   border-radius: var(--r-card);
   padding: 24px 26px;
@@ -327,8 +327,8 @@ h3 { font-size: 14px; font-weight: 700; margin: 16px 0 10px; color: var(--text);
   border: 1px solid rgba(255, 255, 255, .8);
   border-radius: 14px; padding: 14px 16px;
   background: linear-gradient(145deg, rgba(255,255,255,.7), rgba(255,255,255,.45));
-  backdrop-filter: blur(16px) saturate(1.5);
-  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(1.5);
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(1.5);
   box-shadow: var(--shadow-xs), var(--shadow-inset);
   transition: all var(--dur) var(--ease);
   position: relative;
@@ -415,7 +415,7 @@ h3 { font-size: 14px; font-weight: 700; margin: 16px 0 10px; color: var(--text);
   background: linear-gradient(135deg, rgba(255,255,255,.6), rgba(248,250,252,.4));
   border: 1px solid rgba(226, 232, 240, .6);
   border-radius: 12px;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--glass-blur-sm));
 }
 .summary strong { color: var(--text); font-weight: 700; }
 
@@ -424,8 +424,8 @@ h3 { font-size: 14px; font-weight: 700; margin: 16px 0 10px; color: var(--text);
   background: linear-gradient(135deg, rgba(204, 251, 241, .5), rgba(240, 253, 250, .3));
   border: 1px solid rgba(153, 246, 228, .6);
   border-radius: 14px; padding: 14px 16px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
   position: relative;
   overflow: hidden;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
@@ -490,8 +490,8 @@ h3 { font-size: 14px; font-weight: 700; margin: 16px 0 10px; color: var(--text);
     linear-gradient(135deg, rgba(13, 148, 136, .15), rgba(255, 255, 255, .7) 60%),
     linear-gradient(225deg, rgba(37, 99, 235, .08), transparent 50%);
   border: 1px solid rgba(20, 184, 166, .25);
-  backdrop-filter: blur(16px) saturate(1.6);
-  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(1.6);
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(1.6);
   border-radius: var(--r-lg); padding: 24px 28px;
   box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, .8);
 }
@@ -566,8 +566,8 @@ h3 { font-size: 14px; font-weight: 700; margin: 16px 0 10px; color: var(--text);
   overflow-x: auto; border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, .7);
   background: rgba(255, 255, 255, .45);
-  backdrop-filter: blur(12px) saturate(1.4);
-  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(1.4);
   box-shadow: var(--shadow-xs);
 }
 
@@ -648,7 +648,7 @@ tbody td strong { color: var(--text); font-weight: 700; }
   background: rgba(255,255,255,.4);
   border: 1px solid rgba(255,255,255,.6);
   border-radius: 12px;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--glass-blur-sm));
 }
 
 /* ---------- 11. 历史建议 ---------- */
@@ -662,7 +662,7 @@ tbody td strong { color: var(--text); font-weight: 700; }
   transition: all var(--dur-fast) var(--ease);
   display: flex; align-items: center; gap: 8px;
   box-shadow: var(--shadow-xs);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(var(--glass-blur-xs));
 }
 .history-item:hover {
   border-color: var(--accent-light); color: var(--accent);
@@ -683,7 +683,7 @@ tbody td strong { color: var(--text); font-weight: 700; }
   background: rgba(255,255,255,.45);
   border: 1px solid rgba(255,255,255,.6);
   border-radius: 14px;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--glass-blur-sm));
 }
 .settings-form label {
   display: flex; flex-direction: column; gap: 6px;
@@ -700,8 +700,8 @@ tbody td strong { color: var(--text); font-weight: 700; }
   border-radius: var(--r-control);
   font-size: 13.5px; font-family: var(--font); color: var(--text);
   background: rgba(255, 255, 255, .75);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   transition: all var(--dur-fast) var(--ease);
   box-shadow: inset 0 1px 2px rgba(0,0,0,.03);
   font-weight: 500;
@@ -717,8 +717,8 @@ tbody td strong { color: var(--text); font-weight: 700; }
 .modal {
   position: fixed; inset: 0; z-index: 100;
   background: rgba(15, 23, 42, .45);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   display: flex; align-items: center; justify-content: center; padding: 20px;
   animation: modalFade .25s var(--ease) both;
 }
@@ -726,8 +726,8 @@ tbody td strong { color: var(--text); font-weight: 700; }
 
 .modal-box {
   background: rgba(255, 255, 255, .92);
-  backdrop-filter: blur(32px) saturate(1.6);
-  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  backdrop-filter: blur(var(--glass-blur-xl)) saturate(1.6);
+  -webkit-backdrop-filter: blur(var(--glass-blur-xl)) saturate(1.6);
   border-radius: var(--r-lg);
   padding: 26px; width: 92%; max-width: 420px;
   box-shadow: var(--shadow-xl), inset 0 1px 0 rgba(255, 255, 255, .9);
@@ -760,8 +760,8 @@ tbody td strong { color: var(--text); font-weight: 700; }
   border-radius: var(--r-control);
   font-size: 13.5px; font-family: var(--font); color: var(--text);
   background: rgba(255, 255, 255, .8);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
   transition: all var(--dur-fast) var(--ease);
   box-shadow: inset 0 1px 2px rgba(0,0,0,.03);
   font-weight: 500;
@@ -899,6 +899,20 @@ details.small summary:hover { color: var(--accent); }
   .btn { padding: 7px 12px; font-size: 12px; }
   .portfolio-summary { grid-template-columns: 1fr 1fr; }
   .ps-value { font-size: 20px; }
+}
+
+/* ---------- 18.5 触屏降级：降低毛玻璃模糊半径 ---------- */
+/* 移动端滑动卡顿主因 = 大半径 backdrop-filter 在滚动时持续重绘。
+   触屏(coarse)设备把模糊半径整体调低，保留玻璃质感但 GPU 开销骤降；
+   桌面/鼠标设备不受影响，保持满血视觉。 */
+@media (max-width: 768px) and (pointer: coarse) {
+  :root {
+    --glass-blur-xl: 10px;
+    --glass-blur-lg: 8px;
+    --glass-blur-md: 6px;
+    --glass-blur-sm: 3px;
+    --glass-blur-xs: 2px;
+  }
 }
 
 /* ---------- 19. 减少动效偏好 ---------- */
