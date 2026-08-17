@@ -538,6 +538,8 @@ async function loadStatus() { try { state.status = await api('/api/status'); ren
 async function loadMarket() { try { state.market = (await api('/api/market')).market; renderMarket(); } catch (e) { console.warn(e); } }
 async function loadStockIndices() {
   const el = $('#stock-indices'), tm = $('#stock-indices-time');
+  // 非交易时段跳过高频刷新（保留首次/手动加载的收盘数据），开盘后自动恢复实时
+  if (state.status && state.status.now && (!state.status.now.tradingDay || !state.status.now.withinTradingHours)) return;
   try {
     const r = await api('/api/stock/indices');
     if (!r.ok) throw new Error(r.error || '加载失败');
@@ -912,9 +914,11 @@ async function init() {
   setInterval(() => {
     loadStatus();
     loadMarket();
+    loadStockIndices(); // 大盘指数：交易时段内每 60s 实时刷新（非交易时段自动跳过）
     loadOps(); // 定时刷新待生效操作（跨日后服务端会自动结算）
     // 页面停在“今日”时跟随自动生成结果
     if (!state.viewingDate) loadAdvice();
   }, 60_000);
+  setInterval(() => loadHotNews(), 60 * 60 * 1000); // 热点新闻：每小时刷新一次
 }
 init();
