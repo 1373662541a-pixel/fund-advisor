@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { PORT, PUBLIC_DIR, ROOT } from './config.js';
-import { store } from './storage.js';
+import { auth, UserStore } from './storage.js';
 import { generateAdvice, isGenerating, getLastRun } from './service.js';
 import { startScheduler } from './scheduler.js';
 import { getFundQuote, getIndexQuotes, clearFundCache, getStockIndices, getHotNews } from './market.js';
@@ -17,6 +17,48 @@ const app = express();
 app.use(express.json({ limit: '4mb' }));
 app.use(express.static(PUBLIC_DIR));
 
+// ---------- 鉴权中间件 ----------
+function requireAuth(req, res, next) {
+  const h = req.headers.authorization || '';
+  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+  const user = auth.me(token);
+  if (!user) return res.status(401).json({ ok: false, error: '未登录或登录已过期' });
+  req.user = user;
+  req.userStore = new UserStore(user.userId);
+  next();
+}
+
+// ---------- 账号注册/登录 ----------
+app.post('/api/auth/register', (req, res) => {
+  const { username, password } = req.body || {};
+  const r = auth.register(username, password);
+  if (!r.ok) return res.status(400).json(r);
+  // 首个注册用户自动接管旧单用户数据
+  const userStore = new UserStore(r.user.userId);
+  userStore.migrateLegacyIfNeeded();
+  const login = auth.login(username, password);
+  if (!login.ok) return res.status(500).json({ ok: false, error: '注册成功但自动登录失败，请手动登录' });
+  res.json({ ok: true, isFirst: r.isFirst, token: login.token, user: login.user });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body || {};
+  const r = auth.login(username, password);
+  if (!r.ok) return res.status(401).json(r);
+  res.json({ ok: true, token: r.token, user: r.user });
+});
+
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  res.json({ ok: true, user: req.user });
+});
+
+app.post('/api/auth/logout', requireAuth, (req, res) => {
+  const h = req.headers.authorization || '';
+  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+  auth.logout(token);
+  res.json({ ok: true });
+});
+
 // 供前端在浏览器里解析 CSV/XLSX 的 SheetJS
 app.get('/vendor/xlsx.full.min.js', (req, res) => {
   const f = path.join(ROOT, 'node_modules/xlsx/dist/xlsx.full.min.js');
@@ -25,12 +67,12 @@ app.get('/vendor/xlsx.full.min.js', (req, res) => {
 });
 
 // ---------- 状态 ----------
-app.get('/api/status', (req, res) => {
+app.get('/api/status', requireAuth, (req, res) => {
   const now = shNow();
   const date = shDateStr(now);
-  const settings = store.getSettings();
-  const todayAdvice = store.getAdvice(date);
-  const adviceDates = store.listAdviceDates();
+  const settings = req.userStore.getSettings();
+  const todayAdvice = req.userStore.getAdvice(date);
+  const adviceDates = req.userStore.listAdviceDates();
   res.json({
     now: { date, time: shTimeStr(now), tradingDay: isTradingDay(date), withinTradingHours: isWithinTradingHours(now) },
     generating: isGenerating(),
@@ -42,13 +84,13 @@ app.get('/api/status', (req, res) => {
     aiEnabled: settings.ai.enabled && !!settings.ai.apiKey,
     visionEnabled: settings.vision.enabled && !!settings.vision.apiKey,
     engineVersion: settings.engine.version,
-    holdingsCount: store.getHoldings().length,
+    holdingsCount: req.userStore.getHoldings().length,
   });
 });
 
 // ---------- 持仓 CRUD ----------
-app.get('/api/holdings', (req, res) => {
-  res.json(store.getHoldings());
+app.get('/api/holdings', requireAuth, (req, res) => {
+  res.json(req.userStore.getHoldings());
 });
 
 function normalizeHolding(body, id) {
@@ -69,12 +111,12 @@ function normalizeHolding(body, id) {
   };
 }
 
-app.post('/api/holdings', (req, res) => {
+app.post('/api/holdings', requireAuth, (req, res) => {
   try {
     const h = normalizeHolding(req.body || {});
-    const list = store.getHoldings();
+    const list = req.userStore.getHoldings();
     list.push(h);
-    store.saveHoldings(list);
+    req.userStore.saveHoldings(list);
     clearFundCache(h.code);
     res.json({ ok: true, holdings: list });
   } catch (e) {
@@ -82,15 +124,15 @@ app.post('/api/holdings', (req, res) => {
   }
 });
 
-app.put('/api/holdings/:id', (req, res) => {
+app.put('/api/holdings/:id', requireAuth, (req, res) => {
   try {
-    const list = store.getHoldings();
+    const list = req.userStore.getHoldings();
     const idx = list.findIndex((x) => x.id === req.params.id);
     if (idx < 0) return res.status(404).json({ ok: false, error: '持仓不存在' });
     const merged = { ...list[idx], ...req.body, id: list[idx].id };
     const h = normalizeHolding(merged, list[idx].id);
     list[idx] = h;
-    store.saveHoldings(list);
+    req.userStore.saveHoldings(list);
     clearFundCache(h.code);
     res.json({ ok: true, holdings: list });
   } catch (e) {
@@ -98,14 +140,14 @@ app.put('/api/holdings/:id', (req, res) => {
   }
 });
 
-app.delete('/api/holdings/:id', (req, res) => {
-  const list = store.getHoldings().filter((x) => x.id !== req.params.id);
-  store.saveHoldings(list);
+app.delete('/api/holdings/:id', requireAuth, (req, res) => {
+  const list = req.userStore.getHoldings().filter((x) => x.id !== req.params.id);
+  req.userStore.saveHoldings(list);
   res.json({ ok: true, holdings: list });
 });
 
 // ---------- 加仓/减仓操作（下一个交易日自动生效） ----------
-app.post('/api/holdings/ops', (req, res) => {
+app.post('/api/holdings/ops', requireAuth, (req, res) => {
   try {
     const code = String(req.body?.code || '').replace(/\D/g, '');
     const type = String(req.body?.type || '');
@@ -113,13 +155,13 @@ app.post('/api/holdings/ops', (req, res) => {
     if (!/^\d{6}$/.test(code)) throw new Error('基金代码必须是 6 位数字');
     if (type !== 'add' && type !== 'reduce') throw new Error('操作类型必须是 add（加仓）或 reduce（减仓）');
     if (!Number.isFinite(amount) || amount <= 0) throw new Error('操作金额必须是大于 0 的数字');
-    const holdings = store.getHoldings();
+    const holdings = req.userStore.getHoldings();
     const h = holdings.find((x) => x.code === code);
     if (type === 'reduce' && !h) throw new Error('减仓操作需要该基金已在持仓中');
     const today = shDateStr(shNow());
     const effDate = nextTradingDay(today);
     if (!effDate) throw new Error('无法计算下一个交易日');
-    const ops = store.getPendingOps();
+    const ops = req.userStore.getPendingOps();
     const op = {
       id: crypto.randomUUID(),
       code,
@@ -132,23 +174,23 @@ app.post('/api/holdings/ops', (req, res) => {
       createdAt: new Date().toISOString(),
     };
     ops.push(op);
-    store.savePendingOps(ops);
+    req.userStore.savePendingOps(ops);
     res.json({ ok: true, op, pendingCount: ops.filter((o) => o.status === 'pending').length });
   } catch (e) {
     res.status(400).json({ ok: false, error: e.message });
   }
 });
 
-app.get('/api/holdings/ops', (req, res) => {
-  res.json({ ok: true, ops: store.getPendingOps() });
+app.get('/api/holdings/ops', requireAuth, (req, res) => {
+  res.json({ ok: true, ops: req.userStore.getPendingOps() });
 });
 
 // 批量导入：rows = [{code, name, shares, costNav, note}]；同代码合并（更新份额/成本），新代码追加
-app.post('/api/holdings/import', (req, res) => {
+app.post('/api/holdings/import', requireAuth, (req, res) => {
   try {
     const rows = req.body?.rows;
     if (!Array.isArray(rows) || !rows.length) throw new Error('没有可导入的数据');
-    const list = store.getHoldings();
+    const list = req.userStore.getHoldings();
     const byCode = new Map(list.map((x) => [x.code, x]));
     const added = [];
     for (const r of rows) {
@@ -179,7 +221,7 @@ app.post('/api/holdings/import', (req, res) => {
       }
     }
     const updated = [...byCode.values()];
-    store.saveHoldings(updated);
+    req.userStore.saveHoldings(updated);
     for (const h of updated) clearFundCache(h.code);
     res.json({ ok: true, holdings: updated, addedCount: added.length });
   } catch (e) {
@@ -188,11 +230,11 @@ app.post('/api/holdings/import', (req, res) => {
 });
 
 // 截图识别持仓：?mode=auto（默认，配置了 AI 就用 AI，否则本地 OCR）| ai | ocr
-app.post('/api/holdings/import-image', express.raw({ type: ['image/*'], limit: '20mb' }), async (req, res) => {
+app.post('/api/holdings/import-image', express.raw({ type: ['image/*'], limit: '20mb' }), requireAuth, async (req, res) => {
   const buf = req.body;
   if (!buf || !buf.length) return res.status(400).json({ ok: false, error: '未收到图片数据' });
   const mode = String(req.query.mode || 'auto');
-  const settings = store.getSettings();
+  const settings = req.userStore.getSettings();
   const visionReady = settings.vision && settings.vision.enabled && !!settings.vision.apiKey;
   const useAI = mode === 'ai' || (mode === 'auto' && visionReady);
   try {
@@ -269,29 +311,29 @@ app.post('/api/holdings/import-image', express.raw({ type: ['image/*'], limit: '
 });
 
 // ---------- 建议 ----------
-app.post('/api/advice/generate', async (req, res) => {
+app.post('/api/advice/generate', requireAuth, async (req, res) => {
   const force = !!(req.body && req.body.force);
-  const result = await generateAdvice({ force });
+  const result = await generateAdvice({ force }, req.userStore);
   if (!result.ok && result.busy) return res.status(409).json(result);
   if (!result.ok) return res.status(500).json(result);
   res.json(result);
 });
 
-app.get('/api/advice', (req, res) => {
+app.get('/api/advice', requireAuth, (req, res) => {
   const date = req.query.date;
-  const list = store.listAdviceDates();
+  const list = req.userStore.listAdviceDates();
   if (date) {
-    const rec = store.getAdvice(date);
+    const rec = req.userStore.getAdvice(date);
     if (!rec) return res.status(404).json({ ok: false, error: '该日期没有建议记录' });
     return res.json({ ok: true, record: rec });
   }
   if (!list.length) return res.json({ ok: true, record: null });
-  res.json({ ok: true, record: store.getAdvice(list[0]) });
+  res.json({ ok: true, record: req.userStore.getAdvice(list[0]) });
 });
 
-app.get('/api/advice/history', (req, res) => {
-  const list = store.listAdviceDates().slice(0, 90).map((d) => {
-    const r = store.getAdvice(d);
+app.get('/api/advice/history', requireAuth, (req, res) => {
+  const list = req.userStore.listAdviceDates().slice(0, 90).map((d) => {
+    const r = req.userStore.getAdvice(d);
     return {
       date: d,
       generatedAt: r.generatedAt,
@@ -337,8 +379,8 @@ app.get('/api/stock/news', async (req, res) => {
 });
 
 // ---------- 设置 ----------
-app.get('/api/settings', (req, res) => {
-  const s = store.getSettings();
+app.get('/api/settings', requireAuth, (req, res) => {
+  const s = req.userStore.getSettings();
   res.json({
     ...s,
     ai: { ...s.ai, apiKey: s.ai.apiKey ? '****' : '' },
@@ -346,8 +388,8 @@ app.get('/api/settings', (req, res) => {
   });
 });
 
-app.put('/api/settings', (req, res) => {
-  const cur = store.getSettings();
+app.put('/api/settings', requireAuth, (req, res) => {
+  const cur = req.userStore.getSettings();
   const body = req.body || {};
   const next = { ...cur };
   if (body.riskTolerance) next.riskTolerance = body.riskTolerance;
@@ -369,8 +411,8 @@ app.put('/api/settings', (req, res) => {
       next.vision.apiKey = body.vision.apiKey === '****' ? cur.vision.apiKey : '';
     }
   }
-  store.saveSettings(next);
-  const s = store.getSettings();
+  req.userStore.saveSettings(next);
+  const s = req.userStore.getSettings();
   res.json({
     ok: true,
     settings: {
@@ -403,6 +445,9 @@ app.use((err, req, res, next) => {
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`[fund-advisor] 服务已启动: http://127.0.0.1:${PORT}`);
   startScheduler();
-  // 启动时补结算到期的加仓/减仓操作（如服务重启/跨日）
-  settlePendingOps().catch((e) => console.error('[结算] 启动结算异常:', e.message));
+  // 启动时补结算到期的加仓/减仓操作（如服务重启/跨日），遍历所有用户
+  const users = auth.getUsers();
+  for (const u of Object.values(users)) {
+    settlePendingOps(console.log, new UserStore(u.userId)).catch((e) => console.error('[结算] 启动结算异常:', e.message));
+  }
 });

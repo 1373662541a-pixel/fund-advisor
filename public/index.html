@@ -23,6 +23,8 @@
     <span class="chip" id="st-schedule">--</span>
     <span class="chip" id="st-ai">AI: 未启用</span>
     <span class="chip" id="st-vision">识别: 本地OCR</span>
+    <span class="chip accent" id="st-user"></span>
+    <button id="btn-logout" class="btn hidden">退出</button>
     <button id="btn-generate" class="btn primary">立即生成今日建议</button>
   </div>
 </header>
@@ -222,6 +224,19 @@
 </div>
 
 <div id="toast" class="toast hidden"></div>
+
+<div id="auth-view" class="auth-view hidden">
+  <div class="auth-box">
+    <div class="auth-brand">📈 基金投资分析助手</div>
+    <div class="auth-title" id="auth-title">登录</div>
+    <input id="auth-username" placeholder="用户名（3-20位字母/数字/下划线）" autocomplete="username" maxlength="20">
+    <input id="auth-password" type="password" placeholder="密码（至少6位）" autocomplete="current-password">
+    <div id="auth-hint" class="auth-hint">登录后数据将从云端恢复</div>
+    <div id="auth-msg" class="auth-msg"></div>
+    <button id="auth-submit" class="btn primary auth-btn">登 录</button>
+    <div class="auth-switch"><a id="auth-toggle" href="#">还没有账号？注册</a></div>
+  </div>
+</div>
 
 <script src="/vendor/xlsx.full.min.js"></script>
 <script src="/vendor/echarts.min.js"></script>

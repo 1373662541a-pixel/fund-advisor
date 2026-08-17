@@ -1,15 +1,24 @@
-import { store } from './storage.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { DATA_DIR } from './config.js';
 import { isWeekend, shDateStrOf } from './time.js';
+
+function getHolidays() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'holidays.json'), 'utf8'));
+  } catch {
+    return {};
+  }
+}
 
 // 交易日判断：周一~周五，且不在节假日列表中（调休上班的周末也算交易日）
 export function isTradingDay(dateStr) {
   const d = new Date(dateStr + 'T12:00:00+08:00');
   if (Number.isNaN(d.getTime())) return false;
+  const h = getHolidays()[dateStr];
   if (isWeekend(d)) {
-    const h = store.getHolidays()[dateStr];
     return h ? !h.isOffDay : false;
   }
-  const h = store.getHolidays()[dateStr];
   return h ? !h.isOffDay : true;
 }
 

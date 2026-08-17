@@ -1,18 +1,18 @@
 // 交易操作结算模块：用户提交的加仓/减仓操作，在生效日（下一个交易日）按净值自动更新持仓
 import crypto from 'node:crypto';
-import { store } from './storage.js';
 import { getFundQuote } from './market.js';
 import { generateAdvice } from './service.js';
 import { shNow, shDateStr } from './time.js';
 
 // 结算所有已到生效日的待执行操作；结算后如有持仓变化，自动重新生成建议（AI 解读同步刷新）
-export async function settlePendingOps(log = console.log) {
+export async function settlePendingOps(log = console.log, userStore) {
+  if (!userStore) return { settled: 0, pending: 0 };
   const today = shDateStr(shNow());
-  const allOps = store.getPendingOps();
+  const allOps = userStore.getPendingOps();
   const due = allOps.filter((o) => o.status === 'pending' && o.effDate && o.effDate <= today);
   if (!due.length) return { settled: 0, pending: allOps.filter((o) => o.status === 'pending').length };
 
-  const list = store.getHoldings();
+  const list = userStore.getHoldings();
   const byCode = new Map(list.map((h) => [h.code, h]));
   let changed = false;
   let settledCount = 0;
@@ -77,12 +77,12 @@ export async function settlePendingOps(log = console.log) {
     }
   }
 
-  store.saveHoldings([...byCode.values()]);
-  store.savePendingOps(allOps);
+  userStore.saveHoldings([...byCode.values()]);
+  userStore.savePendingOps(allOps);
 
   if (changed) {
     try {
-      await generateAdvice({ force: true });
+      await generateAdvice({ force: true }, userStore);
       log(`[结算] ${today} 持仓已更新，今日建议已重新生成（含AI解读）`);
     } catch (e) {
       log(`[结算] ${today} 建议重新生成失败: ${e.message}`);

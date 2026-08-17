@@ -955,3 +955,36 @@ details.small summary:hover { color: var(--accent); }
 a.news-title:hover { color: var(--accent); }
 .news-digest { color: var(--text-2); font-size: 12px; line-height: 1.65; margin-top: 4px; }
 .news-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: var(--muted); }
+
+/* ---------- 22. 账号登录 ---------- */
+.auth-view {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  background:
+    radial-gradient(900px 600px at 85% -10%, rgba(220, 38, 38, .18), transparent 60%),
+    radial-gradient(700px 500px at -10% 110%, rgba(185, 28, 28, .12), transparent 55%),
+    var(--bg);
+}
+.auth-box {
+  width: min(92vw, 360px); padding: 34px 28px 26px;
+  background: rgba(255, 255, 255, .86);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, .14);
+  backdrop-filter: blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+  display: flex; flex-direction: column; gap: 12px;
+}
+.auth-brand { text-align: center; font-size: 17px; font-weight: 700; color: var(--accent-strong); letter-spacing: .5px; }
+.auth-title { text-align: center; font-size: 15px; color: var(--text-2); margin-bottom: 2px; }
+.auth-box input {
+  width: 100%; padding: 11px 13px; border: 1px solid var(--border-strong); border-radius: 10px;
+  font-size: 14px; background: #fff; color: var(--text); outline: none;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.auth-box input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(220, 38, 38, .12); }
+.auth-hint { font-size: 12px; color: var(--muted); text-align: center; }
+.auth-msg { font-size: 12px; color: var(--up); text-align: center; min-height: 16px; }
+.auth-btn { width: 100%; padding: 11px; font-size: 15px; }
+.auth-switch { text-align: center; font-size: 13px; color: var(--text-3); }
+.chip.accent { color: var(--accent-strong); border-color: var(--accent-light); background: var(--accent-soft-2); }

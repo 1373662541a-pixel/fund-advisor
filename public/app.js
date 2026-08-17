@@ -1,6 +1,7 @@
 /* 基金投资分析助手 - 前端逻辑 */
 const $ = (s) => document.querySelector(s);
 const IS_DEMO = new URLSearchParams(location.search).has('demo');
+const AUTH_KEY = 'fa_token'; // 登录令牌 localStorage key
 /* ========== 纯前端模式（静态部署 / file:// 双击 / ?static=1 / 后端不可达 自动启用） ========== */
 let STATIC_MODE = IS_DEMO || location.protocol === 'file:' || new URLSearchParams(location.search).has('static');
 const LS_KEY = 'fund_advisor_frontend_v1';
@@ -149,6 +150,7 @@ async function staticApi(path, opts = {}) {
 const state = {
   status: null, market: null, holdings: [], advice: null, history: [], settings: null,
   editingId: null, viewingDate: null, generating: false, ocrRows: [], opState: null,
+  user: null, authMode: 'login',
 };
 
 /* ---------- 工具 ---------- */
@@ -219,10 +221,13 @@ const MOCK = {
 
 async function api(path, opts = {}) {
   if (STATIC_MODE) return staticApi(path, opts);
+  const token = localStorage.getItem(AUTH_KEY) || '';
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = 'Bearer ' + token;
   try {
     const res = await fetch(path, {
       method: opts.method || 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: opts.body ? JSON.stringify(opts.body) : undefined,
     });
     const data = await res.json().catch(() => ({}));
@@ -232,6 +237,12 @@ async function api(path, opts = {}) {
         console.warn('后端接口不可用（' + res.status + '），已自动切换纯前端模式');
         STATIC_MODE = true;
         return staticApi(path, opts);
+      }
+      // 登录失效/未登录 → 回到登录页
+      if (res.status === 401 && !path.startsWith('/api/auth/')) {
+        localStorage.removeItem(AUTH_KEY);
+        if (typeof showAuth === 'function') showAuth();
+        throw new Error(data.error || '请先登录');
       }
       throw new Error(data.error || `请求失败 (${res.status})`);
     }
@@ -905,12 +916,79 @@ function bindEvents() {
   });
 
   window.addEventListener('resize', () => { if (pieChart) pieChart.resize(); });
+
+  // 账号登录/注册
+  $('#auth-submit').addEventListener('click', () => doAuth(state.authMode));
+  $('#auth-toggle').addEventListener('click', switchAuthMode);
+  $('#btn-logout').addEventListener('click', doLogout);
+  document.querySelectorAll('#auth-view input').forEach((el) => el.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAuth(state.authMode); }));
+}
+
+/* ---------- 账号登录 ---------- */
+function showAuth() { const v = $('#auth-view'); if (v) v.classList.remove('hidden'); }
+function hideAuth() { const v = $('#auth-view'); if (v) v.classList.add('hidden'); }
+function renderUserBar() {
+  const el = $('#st-user');
+  if (el && state.user) el.textContent = `👤 ${state.user.username}`;
+  const out = $('#btn-logout');
+  if (out) out.classList.toggle('hidden', !state.user);
+}
+async function authCheck() {
+  if (STATIC_MODE) return true; // 纯前端模式无需账号
+  const token = localStorage.getItem(AUTH_KEY);
+  if (!token) { showAuth(); return false; }
+  try {
+    const r = await api('/api/auth/me');
+    if (r.ok && r.user) { state.user = r.user; hideAuth(); renderUserBar(); return true; }
+  } catch (e) { /* 令牌无效走登录 */ }
+  showAuth();
+  return false;
+}
+async function doAuth(mode) {
+  const username = $('#auth-username').value.trim();
+  const password = $('#auth-password').value;
+  const msg = $('#auth-msg');
+  msg.textContent = '';
+  if (!username || !password) { msg.textContent = '请输入用户名和密码'; return; }
+  try {
+    const r = await api(mode === 'register' ? '/api/auth/register' : '/api/auth/login', { method: 'POST', body: { username, password } });
+    if (!r.ok) { msg.textContent = r.error || '操作失败'; return; }
+    localStorage.setItem(AUTH_KEY, r.token);
+    state.user = r.user;
+    hideAuth();
+    renderUserBar();
+    if (mode === 'register') toast(r.isFirst ? '注册成功！首个账号已自动接管原数据' : '注册成功，欢迎使用云端存储！');
+    else toast(`欢迎回来，${r.user.username}！`);
+    await loadAll();
+  } catch (e) {
+    msg.textContent = e.message || '网络错误';
+  }
+}
+function switchAuthMode() {
+  const reg = state.authMode === 'register';
+  state.authMode = reg ? 'login' : 'register';
+  $('#auth-title').textContent = reg ? '登录' : '注册账号';
+  $('#auth-submit').textContent = reg ? '登 录' : '注 册';
+  $('#auth-toggle').textContent = reg ? '还没有账号？注册' : '已有账号？去登录';
+  $('#auth-hint').textContent = reg ? '登录后数据将从云端恢复' : '注册即开通云端存储，数据自动同步';
+  $('#auth-msg').textContent = '';
+}
+async function doLogout() {
+  try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) { /* 忽略 */ }
+  localStorage.removeItem(AUTH_KEY);
+  state.user = null;
+  showAuth();
 }
 
 /* ---------- 启动 ---------- */
+async function loadAll() {
+  await Promise.all([loadStatus(), loadStockIndices(), loadHotNews(), loadHoldings(), loadAdvice(), loadHistory(), loadSettings(), loadOps()]);
+}
 async function init() {
   bindEvents();
-  await Promise.all([loadStatus(), loadStockIndices(), loadHotNews(), loadHoldings(), loadAdvice(), loadHistory(), loadSettings(), loadOps()]);
+  const authed = await authCheck();
+  if (!authed) return; // 未登录：仅显示登录页
+  await loadAll();
   setInterval(() => {
     loadStatus();
     loadStockIndices(); // 大盘指数：交易时段内每 60s 实时刷新（非交易时段自动跳过）
