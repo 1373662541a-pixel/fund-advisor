@@ -1,12 +1,89 @@
 /* 基金投资分析助手 - 前端逻辑 */
 const $ = (s) => document.querySelector(s);
+const IS_DEMO = new URLSearchParams(location.search).has('demo');
 const state = {
   status: null, market: null, holdings: [], advice: null, history: [], settings: null,
   editingId: null, viewingDate: null, generating: false, ocrRows: [], opState: null,
 };
 
 /* ---------- 工具 ---------- */
+const MOCK = {
+  status: {
+    now: { date: '2026-08-18', time: '14:32', tradingDay: true, withinTradingHours: true },
+    schedule: { enabled: true, time: '14:30' },
+    todayAdviceGenerated: true, generating: false,
+    aiEnabled: true, visionEnabled: true,
+  },
+  market: {
+    fetchedAt: Date.now(),
+    list: [
+      { name: '上证指数', price: 3247.56, pct: 1.23, change: 39.45 },
+      { name: '深证成指', price: 10234.78, pct: 1.87, change: 187.32 },
+      { name: '创业板指', price: 2156.43, pct: 2.45, change: 51.62 },
+      { name: '沪深300', price: 3892.15, pct: 0.98, change: 37.81 },
+      { name: '中证500', price: 5678.90, pct: 1.56, change: 87.23 },
+      { name: '科创50', price: 987.65, pct: -0.43, change: -4.28 },
+    ],
+  },
+  holdings: [
+    { id: '1', code: '110022', name: '易方达消费行业股票', shares: 5000, costNav: 3.215, note: '核心仓位' },
+    { id: '2', code: '161725', name: '招商中证白酒指数', shares: 8000, costNav: 1.087, note: '' },
+    { id: '3', code: '005827', name: '易方达蓝筹精选混合', shares: 3000, costNav: 2.156, note: '长期持有' },
+    { id: '4', code: '001102', name: '前海开源国家比较优势', shares: 2000, costNav: 1.876, note: '' },
+    { id: '5', code: '519674', name: '银河创新成长混合', shares: 4000, costNav: 4.321, note: '科技赛道' },
+  ],
+  advice: {
+    date: '2026-08-18', generatedAt: Date.now(), isTradingDay: true,
+    overall: {
+      score: 72, level: '中性偏多', color: '#0d9488',
+      summary: '当前市场情绪回暖，消费与科技板块共振上行。组合整体估值处于合理区间，建议维持现有仓位结构，对短期涨幅较大的品种可适度止盈，同时关注低位补涨机会。',
+      operations: [
+        '易方达消费行业：持仓观望，等待回调至3.15以下可考虑加仓',
+        '招商中证白酒：当前估值偏高，建议减仓1/3锁定收益',
+        '易方达蓝筹精选：继续持有，基金经理调仓逻辑清晰',
+        '银河创新成长：科技板块景气度回升，可小幅加仓',
+      ],
+      risks: [
+        '美联储降息预期反复，北向资金可能出现短期波动',
+        '白酒板块中报业绩分化，需警惕个股暴雷风险',
+        '科技板块估值已处历史中高位，追高需谨慎',
+      ],
+    },
+    ai: { enabled: true, text: '从资金面看，今日北向资金净流入超60亿，连续3日加仓消费与新能源板块，市场风险偏好明显提升。技术面上，上证指数突破3200点整数关口，MACD金叉确认，短期有望挑战3300点压力位。建议投资者保持中性偏多仓位，重点关注业绩确定性强的消费龙头和景气度向上的半导体赛道。' },
+    portfolio: {
+      totalValue: 128650.35, totalProfitPct: 12.45, todayPctWeighted: 1.32,
+      todayProfit: 1678.45, fundCount: 5, hasEstimate: true,
+    },
+    funds: [
+      { code: '110022', name: '易方达消费行业股票', marketValue: 17835.00, nav: 3.567, estNav: 3.582, estimateAvailable: true, todayPct: 1.45, todaySource: 'estimate', trends: { '1m': 5.23, '3m': 8.67 }, profitPct: 10.95, profit: 1760.00, weightPct: 13.9, signal: '观望', signalReason: '估值合理，持有为主' },
+      { code: '161725', name: '招商中证白酒指数', marketValue: 9872.00, nav: 1.234, estNav: 1.241, estimateAvailable: true, todayPct: 2.13, todaySource: 'estimate', trends: { '1m': 7.89, '3m': 12.34 }, profitPct: 13.52, profit: 1176.00, weightPct: 7.7, signal: '止盈(部分)', signalReason: '短期涨幅过大，估值偏高' },
+      { code: '005827', name: '易方达蓝筹精选混合', marketValue: 7035.00, nav: 2.345, estNav: 2.351, estimateAvailable: true, todayPct: 0.87, todaySource: 'estimate', trends: { '1m': 3.45, '3m': 6.78 }, profitPct: 8.77, profit: 567.00, weightPct: 5.5, signal: '可加仓', signalReason: '回调到位，经理调仓积极' },
+      { code: '001102', name: '前海开源国家比较优势', marketValue: 3974.00, nav: 1.987, estNav: 1.995, estimateAvailable: true, todayPct: 1.12, todaySource: 'estimate', trends: { '1m': 4.56, '3m': 7.89 }, profitPct: 5.92, profit: 222.00, weightPct: 3.1, signal: '观望', signalReason: '方向不明，等待信号' },
+      { code: '519674', name: '银河创新成长混合', marketValue: 18268.00, nav: 4.567, estNav: 4.589, estimateAvailable: true, todayPct: 2.87, todaySource: 'estimate', trends: { '1m': 9.23, '3m': 15.67 }, profitPct: 5.69, profit: 984.00, weightPct: 14.2, signal: '可加仓', signalReason: '科技景气向上，空间较大' },
+    ],
+  },
+  history: [
+    { date: '2026-08-18', score: 72, level: '中性偏多', totalProfitPct: 12.45, aiText: '...' },
+    { date: '2026-08-15', score: 65, level: '中性', totalProfitPct: 10.23, aiText: '...' },
+    { date: '2026-08-14', score: 58, level: '偏谨慎', totalProfitPct: 8.67, aiText: '' },
+    { date: '2026-08-13', score: 70, level: '中性偏多', totalProfitPct: 9.45, aiText: '...' },
+    { date: '2026-08-12', score: 55, level: '偏谨慎', totalProfitPct: 7.89, aiText: '' },
+  ],
+  settings: { riskTolerance: '稳健', schedule: { time: '14:30', enabled: true } },
+};
+
 async function api(path, opts = {}) {
+  if (IS_DEMO) {
+    await new Promise((r) => setTimeout(r, 200));
+    if (path === '/api/status') return MOCK.status;
+    if (path === '/api/market') return { market: MOCK.market };
+    if (path === '/api/holdings') return MOCK.holdings;
+    if (path === '/api/advice/history') return { list: MOCK.history };
+    if (path.startsWith('/api/advice')) return { record: MOCK.advice };
+    if (path === '/api/settings') return MOCK.settings;
+    if (path === '/api/holdings/ops') return { ops: [] };
+    return { ok: true };
+  }
   const res = await fetch(path, {
     method: opts.method || 'GET',
     headers: { 'Content-Type': 'application/json' },
@@ -54,6 +131,25 @@ function toast(msg, isError = false) {
   t.className = 'toast' + (isError ? ' error' : '');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.add('hidden'), 3600);
+}
+
+/* ---------- 数字滚动动画 ---------- */
+function animateNumber(el, target, duration = 900, formatter) {
+  if (!el) return;
+  const start = parseFloat(el.dataset.cur || '0') || 0;
+  const end = Number(target);
+  if (!Number.isFinite(end)) { if (formatter) el.textContent = formatter(target); else el.textContent = target; return; }
+  el.dataset.cur = end;
+  const t0 = performance.now();
+  function tick(now) {
+    const p = Math.min((now - t0) / duration, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    const val = start + (end - start) * eased;
+    el.textContent = formatter ? formatter(val) : (Math.round(val * 100) / 100).toString();
+    if (p < 1) requestAnimationFrame(tick);
+    else el.textContent = formatter ? formatter(end) : end.toString();
+  }
+  requestAnimationFrame(tick);
 }
 
 /* ---------- 状态栏 ---------- */
@@ -129,7 +225,7 @@ function renderAdvice() {
   const stops = document.querySelectorAll('#dialGrad stop');
   if (stops.length) { stops[0].setAttribute('stop-color', color); stops[1].setAttribute('stop-color', color); }
   val.style.strokeDasharray = `${(score / 100) * DIAL_C} ${DIAL_C}`;
-  $('#score-num').textContent = score;
+  animateNumber($('#score-num'), score, 1000, (v) => Math.round(v));
   $('#score-level').textContent = r.overall.level;
   $('#score-level').style.color = color;
   $('#advice-summary').textContent = r.overall.summary;
