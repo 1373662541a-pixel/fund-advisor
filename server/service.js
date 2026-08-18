@@ -1,5 +1,6 @@
 import { buildAnalysis } from './analysis.js';
 import { enhanceWithAI } from './ai.js';
+import { getHotNews } from './market.js';
 import { shDateStr } from './time.js';
 import { isTradingDay } from './trading.js';
 
@@ -36,6 +37,12 @@ export async function generateAdvice({ force = false } = {}, userStore) {
     analysis.generatedAt = new Date().toISOString();
     analysis.isTradingDay = isTradingDay(date);
     analysis.engineVersion = settings.engine.version;
+    // 拉取当日消息面（热点新闻），供 AI 决策使用；失败不阻塞生成
+    try {
+      analysis.news = await getHotNews();
+    } catch (e) {
+      analysis.news = { list: [], error: e.message };
+    }
     const aiResult = await enhanceWithAI(analysis, settings);
     const record = { ...analysis, ai: aiResult };
     userStore.saveAdvice(date, record);

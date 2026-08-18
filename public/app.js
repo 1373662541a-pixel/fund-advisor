@@ -404,6 +404,35 @@ function renderAdvice() {
     aiBox.classList.add('hidden');
   }
 
+  // AI 操作决策（加仓百分比 / 减仓百分比 / 观望）
+  const aiDec = $('#ai-decisions');
+  const decisions = (r.ai && Array.isArray(r.ai.decisions) && r.ai.decisions.length) ? r.ai.decisions : null;
+  if (decisions) {
+    aiDec.classList.remove('hidden');
+    // 多 AI 分析员信息
+    const metaEl = $('#ai-decisions-meta');
+    if (metaEl) {
+      const okList = ((r.ai.analysts || []).filter((a) => a && a.ok)) || [];
+      const cnt = r.ai.analystCount || okList.length || 1;
+      const names = okList.length ? okList.map((a) => a.name).join(' + ') : (r.ai.model || 'AI');
+      metaEl.textContent = `由 ${cnt} 个 AI 并发独立分析，首席投资官汇总 · ${names}`;
+    }
+    const fundsMap = new Map((r.funds || []).map((f) => [f.code, f]));
+    $('#ai-decisions-list').innerHTML = decisions.map((d, i) => {
+      const f = fundsMap.get(d.code);
+      const nm = esc(f && f.name ? f.name : d.code);
+      const cls = d.action === '加仓' ? 'dec-add' : d.action === '减仓' ? 'dec-cut' : 'dec-hold';
+      const pctText = d.action === '观望' ? '' : `${d.pct}%`;
+      return `<div class="decision-row ${cls}">
+        <span class="dec-name">${nm}<small>${esc(d.code)}</small></span>
+        <span class="dec-badge">${d.action}${pctText ? ' ' + pctText : ''}</span>
+        <span class="dec-reason">${esc(d.reason || '')}</span>
+      </div>`;
+    }).join('');
+  } else {
+    aiDec.classList.add('hidden');
+  }
+
   $('#advice-operations').innerHTML = (r.overall.operations || []).map((o) => `<li>${esc(o)}</li>`).join('');
   $('#advice-risks').innerHTML = (r.overall.risks || []).map((o) => `<li>${esc(o)}</li>`).join('');
 
@@ -458,16 +487,30 @@ function renderHoldings() {
   // 融合「各基金操作建议」：按代码合并建议数据（最新净值/涨跌/盈亏/操作信号），一只基金一行
   const funds = (state.advice && state.advice.funds) || [];
   const byCode = new Map(funds.map((f) => [f.code, f]));
+  // AI 操作决策（加仓%/减仓%/观望）优先于规则信号
+  const aiDecs = (state.advice && state.advice.ai && Array.isArray(state.advice.ai.decisions))
+    ? new Map(state.advice.ai.decisions.map((d) => [d.code, d])) : null;
   $('#holdings-rows').innerHTML = list.map((h) => {
     const f = byCode.get(h.code);
+    const aiD = aiDecs && aiDecs.get(h.code);
+    let sigHtml;
+    if (aiD) {
+      const pctTxt = aiD.action === '观望' ? '' : ` ${aiD.pct}%`;
+      const sCls = aiD.action === '加仓' ? '可加仓' : aiD.action === '减仓' ? '减仓/止损评估' : '观望';
+      sigHtml = `<span class="signal-badge ${sigClass(sCls)}">${esc(aiD.action)}${pctTxt}</span><br><span class="muted small">${esc(aiD.reason || '')}</span>`;
+    } else if (f) {
+      sigHtml = `<span class="signal-badge ${sigClass(f.signal)}">${esc(f.signal)}</span><br><span class="muted small">${esc(f.signalReason)}</span>`;
+    } else {
+      sigHtml = '--';
+    }
     const adviceTd = f ? `
-      <td class="num">${fmtNum(f.nav)}${f.estimateAvailable ? `<br><span class="muted small">估值 ${fmtNum(f.estNav)}</span>` : ''}</td>
+      <td class="num">${fmtNum(f.nav)}${f.estimateAvailable ? `<br><span class="muted small">估值 ${fmtNum(f.estNav)}${f.estimateSource ? '·' + esc(f.estimateSource) : ''}</span>` : ''}</td>
       <td class="num ${pctClass(f.todayPct)}">${fmtPct(f.todayPct)}${f.todaySource === 'nav' && f.todayPct != null ? '<br><span class="muted small">昨日净值</span>' : ''}</td>
       <td class="num ${pctClass(f.trends['1m'])}">${fmtPct(f.trends['1m'])}</td>
       <td class="num ${pctClass(f.trends['3m'])}">${fmtPct(f.trends['3m'])}</td>
       <td class="num ${pctClass(f.profitPct)}">${fmtPct(f.profitPct)}<br><span class="muted small">${f.profit > 0 ? '+' : ''}${fmtWan(f.profit)}</span></td>
       <td class="num">${f.weightPct}%</td>
-      <td><span class="signal-badge ${sigClass(f.signal)}">${esc(f.signal)}</span><br><span class="muted small">${esc(f.signalReason)}</span></td>` : '<td class="num" colspan="7">--</td>';
+      <td>${sigHtml}</td>` : '<td class="num" colspan="7">--</td>';
     return `<tr>
       <td><b>${esc(h.name)}</b>${h.note ? `<br><span class="muted small">${esc(h.note)}</span>` : ''}</td>
       <td>${esc(h.code)}</td>
@@ -737,9 +780,13 @@ async function handleOcrFile(file) {
   openOcrModal();
   try {
     const blob = await compressImage(file); // 压缩后上传，提速且兼容 AI 接口体积限制
+    const _token = localStorage.getItem(AUTH_KEY) || '';
     const res = await fetch('/api/holdings/import-image?mode=auto', {
       method: 'POST',
-      headers: { 'Content-Type': blob.type || 'image/jpeg' },
+      headers: {
+        'Content-Type': blob.type || 'image/jpeg',
+        ...(_token ? { Authorization: 'Bearer ' + _token } : {}),
+      },
       body: blob,
     });
     const data = await res.json();

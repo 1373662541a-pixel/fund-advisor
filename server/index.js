@@ -257,10 +257,24 @@ app.post('/api/holdings/import-image', express.raw({ type: ['image/*'], limit: '
         aiError = r.error; // auto 模式下 AI 失败自动降级本地 OCR
       }
     }
-    if (!rows.length && method !== 'ai') {
-      const text = await recognizeImage(buf);
-      rawText = text.slice(0, 2000);
-      rows = await parseFunds(text);
+    // AI 返回空结果（模型没识别到 / 判断非持仓页）时，自动降级本地 OCR 再试一次
+    if (!rows.length) {
+      let ocrErr = null;
+      try {
+        const text = await recognizeImage(buf);
+        const ocrRows = await parseFunds(text);
+        if (ocrRows.length) {
+          rows = ocrRows;
+          method = 'ocr';
+          rawText = text.slice(0, 2000);
+          if (aiError) aiError = 'AI 识别为空，已自动降级本地 OCR 识别成功';
+        } else if (!rawText) {
+          rawText = text.slice(0, 2000);
+        }
+      } catch (e) {
+        ocrErr = e.message;
+      }
+      if (!rows.length && !rawText && ocrErr) aiError = (aiError ? aiError + '；' : '') + '本地 OCR 失败: ' + ocrErr;
     }
     // 自动推算：截图只有「持有金额/持有收益率」时，用当日净值反推持有份额与成本净值
     //   份额 = 持有金额 ÷ 当日净值；成本净值 = 当日净值 ÷ (1 + 收益率)（或 = 净值×(金额-收益)/金额）
@@ -295,7 +309,7 @@ app.post('/api/holdings/import-image', express.raw({ type: ['image/*'], limit: '
         return out;
       });
     }
-    res.json({
+    const respBody = {
       ok: true,
       rows,
       method,
@@ -304,7 +318,9 @@ app.post('/api/holdings/import-image', express.raw({ type: ['image/*'], limit: '
       rawText,
       autoCalculated,
       elapsed: Date.now() - t0,
-    });
+    };
+    console.log(`[import-image] user=${req.user?.username || '?'} mode=${mode} vision=${visionReady} size=${buf.length}B rows=${rows.length} method=${method} model=${model || '-'} aiError=${aiError || '-'} elapsed=${respBody.elapsed}ms`);
+    res.json(respBody);
   } catch (e) {
     res.status(500).json({ ok: false, error: '图片识别失败：' + e.message });
   }
@@ -442,8 +458,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ ok: false, error: err.message || '服务器内部错误' });
 });
 
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`[fund-advisor] 服务已启动: http://127.0.0.1:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[fund-advisor] 服务已启动: http://0.0.0.0:${PORT}`);
   startScheduler();
   // 启动时补结算到期的加仓/减仓操作（如服务重启/跨日），遍历所有用户
   const users = auth.getUsers();

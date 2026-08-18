@@ -446,6 +446,36 @@ h3 { font-size: 14px; font-weight: 700; margin: 16px 0 10px; color: var(--text);
   line-height: 1.75; position: relative;
 }
 
+/* AI 操作决策（加仓%/减仓%/观望） */
+.ai-decisions {
+  margin-top: 14px;
+  background: linear-gradient(135deg, rgba(255, 237, 213, .45), rgba(255, 247, 237, .25));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+}
+.ai-decisions::before {
+  content: ""; position: absolute; top: -50%; right: -20%; width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(240, 140, 0, .12), transparent 70%);
+  pointer-events: none;
+}
+.decisions-list { display: flex; flex-direction: column; gap: 8px; position: relative; }
+.decision-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 9px 11px; border-radius: 10px; font-size: 13px;
+  background: rgba(255,255,255,.65); border: 1px solid rgba(0,0,0,.05);
+}
+.decision-row.dec-add { border-left: 3px solid #e03131; }
+.decision-row.dec-cut { border-left: 3px solid #1971c2; }
+.decision-row.dec-hold { border-left: 3px solid #868e96; }
+.dec-name { font-weight: 700; color: var(--text); min-width: 110px; }
+.dec-name small { display: block; font-weight: 400; color: var(--text-3); font-size: 11px; }
+.dec-badge {
+  font-weight: 800; font-size: 12px; padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+}
+.dec-add .dec-badge { background: rgba(224, 49, 49, .12); color: #e03131; }
+.dec-cut .dec-badge { background: rgba(25, 113, 194, .12); color: #1971c2; }
+.dec-hold .dec-badge { background: rgba(134, 142, 150, .12); color: #495057; }
+.dec-reason { flex: 1; min-width: 160px; color: var(--text-2); font-size: 12.5px; line-height: 1.5; }
+
 .advice-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 16px; }
 .ops, .risks {
   padding-left: 0; list-style: none; font-size: 13.5px; color: var(--text-2);

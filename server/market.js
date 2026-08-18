@@ -114,6 +114,24 @@ async function fetchSinaFund(code) {
   };
 }
 
+// ---------- 基金盘中估值（东方财富 fundgz，基金公司口径，最常用/较准） ----------
+async function fetchEastmoneyEstimate(code) {
+  const url = `https://fundgz.1234567.com.cn/js/${code}.js`;
+  const text = await fetchText(url, 'https://fund.eastmoney.com/');
+  const m = text.match(/jsonpgz\((\{[\s\S]*?\})\)\s*;/);
+  if (!m) throw new Error('东财估值接口返回格式异常');
+  const j = JSON.parse(m[1]);
+  return {
+    code,
+    name: j.name || null,
+    nav: j.dwjz !== undefined ? Number(j.dwjz) : null,
+    navDate: j.jzrq || null,
+    estNav: j.gsz !== undefined ? Number(j.gsz) : null,
+    estChgPct: j.gszzl !== undefined ? Number(j.gszzl) : null,
+    estTime: j.gztime || null,
+  };
+}
+
 // ---------- 基金历史净值（东方财富 pingzhongdata） ----------
 export async function fetchFundHistory(code) {
   const url = `https://fund.eastmoney.com/pingzhongdata/${code}.js`;
@@ -160,6 +178,7 @@ export async function getFundQuote(code) {
   if (cached && Date.now() - cached.ts < 5 * 60 * 1000) return cached.data;
   let tencent = null;
   let sina = null;
+  let emEst = null;
   const errors = [];
   try {
     tencent = await fetchTencentFund(code);
@@ -171,20 +190,32 @@ export async function getFundQuote(code) {
   } catch (e) {
     errors.push(`新浪:${e.message}`);
   }
+  try {
+    emEst = await fetchEastmoneyEstimate(code);
+  } catch (e) {
+    errors.push(`东财估值:${e.message}`);
+  }
 
-  const nav = (tencent && tencent.nav) || (sina && sina.nav) || null;
-  const navDate = (tencent && tencent.navDate) || (sina && sina.navDate) || null;
-  const name = (tencent && tencent.name) || (sina && sina.name) || code;
+  const nav = (emEst && emEst.nav) || (tencent && tencent.nav) || (sina && sina.nav) || null;
+  const navDate = (emEst && emEst.navDate) || (tencent && tencent.navDate) || (sina && sina.navDate) || null;
+  const name = (emEst && emEst.name) || (tencent && tencent.name) || (sina && sina.name) || code;
 
   let estNav = null;
   let estChgPct = null;
   let estimateSource = null;
+  let estTime = null;
   if (isWithinTradingHours()) {
-    if (tencent && saneEstimate(tencent.estNav, tencent.nav)) {
+    // 优先东方财富基金公司口径估值，其次腾讯，最后新浪
+    if (emEst && saneEstimate(emEst.estNav, emEst.nav || nav)) {
+      estNav = emEst.estNav;
+      estChgPct = emEst.estChgPct;
+      estimateSource = '东财估值';
+      estTime = emEst.estTime;
+    } else if (tencent && saneEstimate(tencent.estNav, tencent.nav || nav)) {
       estNav = tencent.estNav;
       estChgPct = tencent.estChgPct;
       estimateSource = '腾讯估值';
-    } else if (sina && saneEstimate(sina.estNav, sina.nav)) {
+    } else if (sina && saneEstimate(sina.estNav, sina.nav || nav)) {
       estNav = sina.estNav;
       estChgPct = nav ? (sina.estNav / nav - 1) * 100 : null;
       estimateSource = '新浪估值';
@@ -201,6 +232,7 @@ export async function getFundQuote(code) {
     estChgPct,
     estimateSource,
     estimateAvailable: !!estNav,
+    estTime,
     errors,
   };
   quoteCache.set(code, { ts: Date.now(), data });
