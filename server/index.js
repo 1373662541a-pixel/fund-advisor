@@ -6,7 +6,7 @@ import { PORT, PUBLIC_DIR, ROOT } from './config.js';
 import { auth, UserStore } from './storage.js';
 import { generateAdvice, isGenerating, getLastRun } from './service.js';
 import { startScheduler } from './scheduler.js';
-import { getFundQuote, getIndexQuotes, clearFundCache, getStockIndices, getHotNews } from './market.js';
+import { getFundQuote, getIndexQuotes, clearFundCache, getStockIndices, getHotNews, getSectorQuotes } from './market.js';
 import { recognizeImage, parseFunds } from './ocr.js';
 import { recognizeWithAI } from './vision.js';
 import { settlePendingOps } from './ops.js';
@@ -371,6 +371,16 @@ app.get('/api/market', async (req, res) => {
     res.json({ ok: true, market });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ---------- 行业板块资金动向（行情分析技能） ----------
+app.get('/api/market/sectors', async (req, res) => {
+  try {
+    const data = await getSectorQuotes();
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: e.message });
   }
 });
 

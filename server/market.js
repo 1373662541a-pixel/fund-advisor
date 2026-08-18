@@ -290,6 +290,57 @@ export async function getStockIndices() {
   return { list, fetchedAt: shNow().toISOString() };
 }
 
+// ---------- 行情分析技能：指数技术面快照（量能/振幅/位置） ----------
+export async function getIndexTech() {
+  const { list } = await getStockIndices();
+  const tech = list.map((q) => {
+    const amplitude = q.prevClose > 0 ? ((q.high - q.low) / q.prevClose) * 100 : null; // 振幅%
+    const position = q.prevClose > 0 ? ((q.price - q.low) / Math.max(q.high - q.low, 1e-9)) * 100 : null; // 日内位置
+    return {
+      code: q.code,
+      name: q.name,
+      price: q.price,
+      pct: q.pct,
+      open: q.open,
+      high: q.high,
+      low: q.low,
+      amplitude: Math.round(amplitude * 10) / 10,
+      position: Math.round(position), // 0=贴近最低 100=贴近最高
+      amountYi: Math.round((q.amount / 10000) * 10) / 10, // 成交额(亿)
+      volume: q.volume,
+    };
+  });
+  return { list: tech, fetchedAt: shNow().toISOString() };
+}
+
+// ---------- 行情分析技能：行业板块资金动向（东财板块榜） ----------
+async function fetchSectorsByOrder(po) {
+  // po=1 涨幅榜，po=0 跌幅榜；fs=m:90+t:2 行业板块
+  const url = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=8&po=${po}&np=1&fltt=2&invt=2&fid=f3&fs=m:90+t:2&fields=f2,f3,f12,f14,f104,f105,f128`;
+  const text = await fetchText(url, 'https://quote.eastmoney.com/');
+  const json = JSON.parse(text);
+  const diff = (json.data && json.data.diff) || [];
+  return diff.map((d) => ({
+    code: d.f12,
+    name: d.f14,
+    pct: d.f3,
+    up: d.f104,
+    down: d.f105,
+    leader: d.f128 || null, // 领涨股
+  }));
+}
+export async function getSectorQuotes() {
+  const [gains, losses] = await Promise.allSettled([
+    fetchSectorsByOrder(1),
+    fetchSectorsByOrder(0),
+  ]);
+  const gainsList = gains.status === 'fulfilled' ? gains.value : [];
+  const lossesList = losses.status === 'fulfilled' ? losses.value : [];
+  const list = [...gainsList.slice(0, 6), ...lossesList.slice(0, 6)];
+  if (!list.length) throw new Error('板块行情获取失败');
+  return { list, gains: gainsList.slice(0, 6), losses: lossesList.slice(0, 6), fetchedAt: shNow().toISOString() };
+}
+
 // ---------- 热点新闻（东方财富快讯，新浪7x24备选） ----------
 async function fetchEastmoneyNews() {
   const url = 'https://newsapi.eastmoney.com/kuaixun/v1/getlist_102_ajaxResult_50_1_.html';

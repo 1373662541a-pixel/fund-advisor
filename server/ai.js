@@ -24,6 +24,9 @@ export async function enhanceWithAI(analysis, settings) {
     market: {
       indexes: (analysis.market.list || []).map((q) => ({ name: q.name, pct: q.pct, price: q.price })),
       weightedPct: analysis.market.weightedPct,
+      // 行情分析技能：板块资金动向 + 指数技术面
+      sectors: (analysis.market.sectors || []).map((s) => ({ name: s.name, pct: s.pct, up: s.up, down: s.down, leader: s.leader })),
+      tech: (analysis.market.tech || []).map((t) => ({ name: t.name, pct: t.pct, amplitude: t.amplitude, position: t.position, amountYi: t.amountYi })),
     },
     portfolio: analysis.portfolio,
     funds: analysis.funds.map((f) => ({
@@ -129,16 +132,24 @@ function buildAnalysts(ai) {
 
 // ---------- 单个分析员调用 ----------
 async function callAnalyst(a, context, newsText) {
-  const system = `你是一名专业的基金投资分析师，擅长结合"当日消息面 + 用户持仓数据"给出明确可执行的操作决策。
+  const system = `你是一名专业的基金投资分析师，擅长结合"当日消息面 + 实时行情 + 用户持仓数据"给出明确可执行的操作决策。
 ${a.bias ? `\n你的分析视角：${a.bias}` : ''}
+
+【行情分析技能】你会收到以下实时行情数据，请充分利用：
+- market.sectors：今日行业板块涨幅/跌幅榜（含领涨股），判断资金流向与板块轮动方向；
+- market.tech：指数技术面（涨跌幅、振幅、日内位置0~100、成交额亿），判断市场强弱与量能；
+- market.indexes：主要指数涨跌；
+- news：当日消息面（政策/宏观/行业新闻）；
+- funds：持仓基金数据（盈亏、趋势、今日估值涨跌、占比）。
+分析时：先看板块资金动向与指数强弱判断市场环境，再对照持仓基金的主题（如消费/白酒/科技/医药/新能源），找出与强势/弱势板块相关的基金，给出决策。
 
 要求：
 1. 对每只持仓基金给出明确操作：
    - 加仓：pct 为占该基金当前市值的百分比（建议 5~20，单日加仓合计不超过组合总仓位的 10%）
    - 减仓：pct 为占该基金当前市值的百分比（建议 10~30）
    - 观望：pct 填 0
-2. 理由必须结合消息面或数据，不能泛泛而谈。
-3. 消息面利空时相应基金应减仓或观望；消息面利好时可加仓。
+2. 理由必须结合行情技能数据（板块/量能/消息面）或持仓数据，不能泛泛而谈。
+3. 持仓基金对应板块在涨幅榜前列且量能放大 → 可加仓；在跌幅榜且消息面利空 → 减仓或观望。
 4. 不要编造数据；无法判断时给"观望"。
 5. 只输出一个 JSON 对象（不要 markdown 代码块，不要解释文字）：
 {"summary":"一句话点评（50字内）","decisions":[{"code":"基金代码","action":"加仓","pct":10,"reason":"理由（40字内）"}]}

@@ -1,6 +1,6 @@
 import { buildAnalysis } from './analysis.js';
 import { enhanceWithAI } from './ai.js';
-import { getHotNews } from './market.js';
+import { getHotNews, getSectorQuotes, getIndexTech } from './market.js';
 import { shDateStr } from './time.js';
 import { isTradingDay } from './trading.js';
 
@@ -37,12 +37,17 @@ export async function generateAdvice({ force = false } = {}, userStore) {
     analysis.generatedAt = new Date().toISOString();
     analysis.isTradingDay = isTradingDay(date);
     analysis.engineVersion = settings.engine.version;
-    // 拉取当日消息面（热点新闻），供 AI 决策使用；失败不阻塞生成
+    // 拉取当日消息面（热点新闻）+ 行情分析技能数据（板块资金动向/指数技术面），供 AI 决策使用；失败不阻塞生成
     try {
       analysis.news = await getHotNews();
     } catch (e) {
       analysis.news = { list: [], error: e.message };
     }
+    const [sectorsRes, techRes] = await Promise.allSettled([getSectorQuotes(), getIndexTech()]);
+    analysis.market.sectors = sectorsRes.status === 'fulfilled' ? sectorsRes.value.list : [];
+    analysis.market.sectorError = sectorsRes.status === 'rejected' ? sectorsRes.reason.message : null;
+    analysis.market.tech = techRes.status === 'fulfilled' ? techRes.value.list : [];
+    analysis.market.techError = techRes.status === 'rejected' ? techRes.reason.message : null;
     const aiResult = await enhanceWithAI(analysis, settings);
     const record = { ...analysis, ai: aiResult };
     userStore.saveAdvice(date, record);

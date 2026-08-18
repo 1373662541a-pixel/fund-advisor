@@ -363,6 +363,27 @@ function renderMarket() {
     </div>`).join('');
 }
 
+/* ---------- 行业板块资金动向（行情分析技能） ---------- */
+async function loadSectors() {
+  try {
+    const d = await api('/api/market/sectors');
+    const list = d.list || [];
+    const wrap = $('#sector-list');
+    if (!wrap) return;
+    if (!list.length) { wrap.innerHTML = '<div class="empty small">板块数据获取失败</div>'; return; }
+    $('#sector-time').textContent = d.fetchedAt ? `更新于 ${new Date(d.fetchedAt).toLocaleTimeString('zh-CN', { hour12: false })}` : '';
+    wrap.innerHTML = list.map((s) => `
+      <div class="sector-chip ${s.pct >= 0 ? 'up' : 'down'}">
+        <span class="s-name">${esc(s.name)}</span>
+        <span class="s-pct">${s.pct >= 0 ? '+' : ''}${s.pct}%</span>
+        ${s.leader ? `<span class="s-leader">${esc(s.leader)}</span>` : ''}
+      </div>`).join('');
+  } catch (e) {
+    const wrap = $('#sector-list');
+    if (wrap) wrap.innerHTML = '<div class="empty small">板块数据加载失败</div>';
+  }
+}
+
 /* ---------- 建议区 ---------- */
 const DIAL_C = 2 * Math.PI * 52;
 function renderAdvice() {
@@ -1029,7 +1050,7 @@ async function doLogout() {
 
 /* ---------- 启动 ---------- */
 async function loadAll() {
-  await Promise.all([loadStatus(), loadStockIndices(), loadHotNews(), loadHoldings(), loadAdvice(), loadHistory(), loadSettings(), loadOps()]);
+  await Promise.all([loadStatus(), loadStockIndices(), loadSectors(), loadHotNews(), loadHoldings(), loadAdvice(), loadHistory(), loadSettings(), loadOps()]);
 }
 async function init() {
   bindEvents();
