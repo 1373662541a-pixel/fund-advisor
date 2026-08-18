@@ -150,7 +150,7 @@ async function staticApi(path, opts = {}) {
 const state = {
   status: null, market: null, holdings: [], advice: null, history: [], settings: null,
   editingId: null, viewingDate: null, generating: false, ocrRows: [], opState: null,
-  user: null, authMode: 'login',
+  user: null, authMode: 'login', estimates: null,
 };
 
 /* ---------- 工具 ---------- */
@@ -386,6 +386,26 @@ async function loadSectors() {
   }
 }
 
+/* ---------- 实时估值轮询（板块联动估算+新浪兜底，60s 刷新） ---------- */
+let estimating = false;
+async function loadEstimates() {
+  if (estimating) return;
+  if (!state.holdings || !state.holdings.length) return;
+  // 非交易时段不轮询（保留建议快照数据）
+  if (state.status && state.status.now && !state.status.now.withinTradingHours) return;
+  estimating = true;
+  try {
+    const codes = state.holdings.map((h) => h.code).filter(Boolean).join(',');
+    if (!codes) return;
+    const d = await api('/api/market/estimate?codes=' + codes);
+    if (d.ok !== false && d.list) {
+      state.estimates = { list: d.list, fetchedAt: d.fetchedAt };
+      renderHoldings();
+    }
+  } catch (e) { /* 轮询失败静默，下次重试 */ }
+  finally { estimating = false; }
+}
+
 /* ---------- 建议区 ---------- */
 const DIAL_C = 2 * Math.PI * 52;
 function renderAdvice() {
@@ -486,15 +506,38 @@ function renderCharts(r) {
 function renderHoldings() {
   const list = state.holdings;
   $('#holdings-count').textContent = `共 ${list.length} 只`;
-  // 组合概览汇总（融合自原「组合概览」，数据来自最近一次建议）
+  // 实时估值（板块联动估算+新浪兜底）覆盖建议快照
+  const estMap = new Map((state.estimates && state.estimates.list || []).map((e) => [e.code, e]));
+  // 组合概览汇总（融合自原「组合概览」，数据来自最近一次建议 + 实时估值）
   const p = state.advice && state.advice.portfolio;
   const ps = $('#portfolio-summary');
   if (ps) {
     if (p && p.fundCount) {
+      // 实时今日估算：用最新估值重算
+      let rtProfit = null, rtPctW = null, rtHas = false;
+      if (estMap.size) {
+        let tp = 0; const items = [];
+        for (const h of list) {
+          const e = estMap.get(h.code);
+          if (e && e.estimateAvailable && e.nav > 0 && e.estNav > 0) {
+            tp += h.shares * (e.estNav - e.nav);
+            items.push({ pct: e.estChgPct, w: h.shares * e.nav });
+            rtHas = true;
+          }
+        }
+        if (rtHas) {
+          const wsum = items.reduce((s, x) => s + x.w, 0);
+          rtPctW = wsum > 0 ? items.reduce((s, x) => s + x.pct * x.w, 0) / wsum : null;
+          rtProfit = tp;
+        }
+      }
+      const todayPctW = rtPctW != null ? rtPctW : p.todayPctWeighted;
+      const todayProfit = rtProfit != null ? rtProfit : p.todayProfit;
+      const todayLabel = (rtPctW != null ? '今日估算' : (p.hasEstimate ? '今日估算' : '最近净值变动')) + (rtPctW != null && state.estimates && state.estimates.fetchedAt ? `<span class="ps-sub" style="display:block">实时 ${new Date(state.estimates.fetchedAt).toLocaleTimeString('zh-CN', { hour12: false })}</span>` : '');
       ps.innerHTML = `
         <div class="ps-item"><span class="ps-label">总市值</span><b class="ps-value">${fmtWan(p.totalValue)}</b></div>
         <div class="ps-item"><span class="ps-label">累计盈亏</span><b class="ps-value ${pctClass(p.totalProfitPct)}">${fmtPct(p.totalProfitPct)}</b></div>
-        <div class="ps-item"><span class="ps-label">${p.hasEstimate ? '今日估算' : '最近净值变动'}</span><b class="ps-value ${pctClass(p.todayPctWeighted)}">${fmtPct(p.todayPctWeighted)}</b>${p.todayProfit != null ? `<em class="ps-sub ${pctClass(p.todayProfit)}">约 ${p.todayProfit > 0 ? '+' : ''}${fmtWan(p.todayProfit)}</em>` : ''}</div>
+        <div class="ps-item"><span class="ps-label">${todayLabel}</span><b class="ps-value ${pctClass(todayPctW)}">${fmtPct(todayPctW)}</b>${todayProfit != null ? `<em class="ps-sub ${pctClass(todayProfit)}">约 ${todayProfit > 0 ? '+' : ''}${fmtWan(todayProfit)}</em>` : ''}</div>
         <div class="ps-item"><span class="ps-label">基金数量</span><b class="ps-value">${p.fundCount || 0}只</b></div>`;
       ps.classList.remove('hidden');
     } else {
@@ -515,6 +558,12 @@ function renderHoldings() {
     ? new Map(state.advice.ai.decisions.map((d) => [d.code, d])) : null;
   $('#holdings-rows').innerHTML = list.map((h) => {
     const f = byCode.get(h.code);
+    // 实时估值覆盖（今日涨跌/估算净值/来源）
+    const e = estMap.get(h.code);
+    const todayPct = e && e.estimateAvailable ? e.estChgPct : (f ? f.todayPct : null);
+    const estNav = e && e.estimateAvailable ? e.estNav : (f ? f.estNav : null);
+    const estSrc = e && e.estimateAvailable ? e.estimateSource : (f ? f.estimateSource : null);
+    const estAvail = !!(e && e.estimateAvailable) || (f && f.estimateAvailable);
     const aiD = aiDecs && aiDecs.get(h.code);
     let sigHtml;
     if (aiD) {
@@ -527,8 +576,8 @@ function renderHoldings() {
       sigHtml = '--';
     }
     const adviceTd = f ? `
-      <td class="num">${fmtNum(f.nav)}${f.estimateAvailable ? `<br><span class="muted small">估值 ${fmtNum(f.estNav)}${f.estimateSource ? '·' + esc(f.estimateSource) : ''}</span>` : ''}</td>
-      <td class="num ${pctClass(f.todayPct)}">${fmtPct(f.todayPct)}${f.todaySource === 'nav' && f.todayPct != null ? '<br><span class="muted small">昨日净值</span>' : ''}</td>
+      <td class="num">${fmtNum(f.nav)}${estAvail && estNav ? `<br><span class="muted small">估值 ${fmtNum(estNav)}${estSrc ? '·' + esc(estSrc) : ''}</span>` : ''}</td>
+      <td class="num ${pctClass(todayPct)}">${fmtPct(todayPct)}${todayPct != null && (e && e.estimateAvailable) ? '<br><span class="muted small">实时</span>' : (f.todaySource === 'nav' && f.todayPct != null ? '<br><span class="muted small">昨日净值</span>' : '')}</td>
       <td class="num ${pctClass(f.trends['1m'])}">${fmtPct(f.trends['1m'])}</td>
       <td class="num ${pctClass(f.trends['3m'])}">${fmtPct(f.trends['3m'])}</td>
       <td class="num ${pctClass(f.profitPct)}">${fmtPct(f.profitPct)}<br><span class="muted small">${f.profit > 0 ? '+' : ''}${fmtWan(f.profit)}</span></td>
@@ -1052,7 +1101,7 @@ async function doLogout() {
 
 /* ---------- 启动 ---------- */
 async function loadAll() {
-  await Promise.all([loadStatus(), loadStockIndices(), loadSectors(), loadHotNews(), loadHoldings(), loadAdvice(), loadHistory(), loadSettings(), loadOps()]);
+  await Promise.all([loadStatus(), loadStockIndices(), loadSectors(), loadHotNews(), loadHoldings(), loadAdvice(), loadHistory(), loadSettings(), loadOps(), loadEstimates()]);
 }
 async function init() {
   bindEvents();
@@ -1062,6 +1111,7 @@ async function init() {
   setInterval(() => {
     loadStatus();
     loadStockIndices(); // 大盘指数：交易时段内每 60s 实时刷新（非交易时段自动跳过）
+    loadEstimates(); // 持仓估值：板块联动估算实时刷新（非交易时段自动跳过）
     loadOps(); // 定时刷新待生效操作（跨日后服务端会自动结算）
     // 页面停在“今日”时跟随自动生成结果
     if (!state.viewingDate) loadAdvice();

@@ -6,7 +6,7 @@ import { PORT, PUBLIC_DIR, ROOT } from './config.js';
 import { auth, UserStore } from './storage.js';
 import { generateAdvice, isGenerating, getLastRun } from './service.js';
 import { startScheduler } from './scheduler.js';
-import { getFundQuote, getIndexQuotes, clearFundCache, getStockIndices, getHotNews, getSectorQuotes } from './market.js';
+import { getFundQuote, getIndexQuotes, clearFundCache, getStockIndices, getHotNews, getSectorQuotes, getFundEstimates } from './market.js';
 import { recognizeImage, parseFunds } from './ocr.js';
 import { recognizeWithAI } from './vision.js';
 import { settlePendingOps } from './ops.js';
@@ -378,6 +378,21 @@ app.get('/api/market', async (req, res) => {
 app.get('/api/market/sectors', async (req, res) => {
   try {
     const data = await getSectorQuotes();
+    res.json({ ok: true, ...data });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: e.message });
+  }
+});
+
+// ---------- 实时估值（板块联动估算优先+新浪兜底；前端 60s 轮询） ----------
+app.get('/api/market/estimate', async (req, res) => {
+  try {
+    const codes = String(req.query.codes || '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter((c) => /^\d{6}$/.test(c));
+    if (!codes.length) return res.json({ ok: true, list: [], fetchedAt: new Date().toISOString() });
+    const data = await getFundEstimates(codes);
     res.json({ ok: true, ...data });
   } catch (e) {
     res.status(502).json({ ok: false, error: e.message });
