@@ -24,9 +24,10 @@ export async function enhanceWithAI(analysis, settings) {
     market: {
       indexes: (analysis.market.list || []).map((q) => ({ name: q.name, pct: q.pct, price: q.price })),
       weightedPct: analysis.market.weightedPct,
-      // 行情分析技能：板块资金动向 + 指数技术面
+      // 行情分析技能：板块资金动向 + 指数技术面 + 板块资金流向
       sectors: (analysis.market.sectors || []).map((s) => ({ name: s.name, pct: s.pct, up: s.up, down: s.down, leader: s.leader })),
       tech: (analysis.market.tech || []).map((t) => ({ name: t.name, pct: t.pct, amplitude: t.amplitude, position: t.position, amountYi: t.amountYi })),
+      moneyFlow: (analysis.market.moneyFlow || []).map((m) => ({ name: m.name, pct: m.pct, mainNetYi: m.mainNet != null ? Math.round(m.mainNet / 1e8 * 100) / 100 : null, mainPct: m.mainPct })),
     },
     portfolio: analysis.portfolio,
     funds: analysis.funds.map((f) => ({
@@ -135,13 +136,14 @@ async function callAnalyst(a, context, newsText) {
   const system = `你是一名专业的基金投资分析师，擅长结合"当日消息面 + 实时行情 + 用户持仓数据"给出明确可执行的操作决策。
 ${a.bias ? `\n你的分析视角：${a.bias}` : ''}
 
-【行情分析技能】你会收到以下实时行情数据，请充分利用：
-- market.sectors：今日行业板块涨幅/跌幅榜（含领涨股），判断资金流向与板块轮动方向；
-- market.tech：指数技术面（涨跌幅、振幅、日内位置0~100、成交额亿），判断市场强弱与量能；
-- market.indexes：主要指数涨跌；
-- news：当日消息面（政策/宏观/行业新闻）；
-- funds：持仓基金数据（盈亏、趋势、今日估值涨跌、占比）。
-分析时：先看板块资金动向与指数强弱判断市场环境，再对照持仓基金的主题（如消费/白酒/科技/医药/新能源），找出与强势/弱势板块相关的基金，给出决策。
+ 【行情分析技能】你会收到以下实时行情数据，请充分利用：
+ - market.sectors：今日行业板块涨幅/跌幅榜（含领涨股），判断板块轮动方向；
+ - market.moneyFlow：板块主力资金净流入榜（主力净流入金额亿 + 主力净占比），判断资金真正流向（涨跌幅可能与资金流向背离，以资金流向为准）；
+ - market.tech：指数技术面（涨跌幅、振幅、日内位置0~100、成交额亿），判断市场强弱与量能；
+ - market.indexes：主要指数涨跌；
+ - news：当日消息面（政策/宏观/行业新闻）；
+ - funds：持仓基金数据（盈亏、趋势、今日估值涨跌、占比）。
+ 分析时：先看板块资金动向（资金净流入方向）与指数强弱判断市场环境，再对照持仓基金的主题（如消费/白酒/科技/医药/新能源），找出与强势/弱势板块相关的基金，给出决策。
 
 要求：
 1. 对每只持仓基金给出明确操作：

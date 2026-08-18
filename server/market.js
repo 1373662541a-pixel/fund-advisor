@@ -381,6 +381,41 @@ export async function getSectorQuotes() {
 }
 let sectorQuotesCache = null;
 
+// ---------- 板块资金流向（主力净流入榜；东财 push2，缓存 30s 防限流） ----------
+let moneyFlowCache = null;
+async function fetchSectorsByMoney(po) {
+  // fid=f62 按主力净流入排序；po=1 净流入榜，po=0 净流出榜
+  const url = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=8&po=${po}&np=1&fltt=2&invt=2&fid=f62&fs=m:90+t:2&fields=f3,f12,f14,f62,f184,f66,f72,f78,f84`;
+  const text = await fetchText(url, 'https://emdata.eastmoney.com/');
+  const json = JSON.parse(text);
+  const diff = (json.data && json.data.diff) || [];
+  return diff.map((d) => ({
+    code: d.f12,
+    name: d.f14,
+    pct: d.f3,
+    mainNet: d.f62,        // 主力净流入（元）
+    mainPct: d.f184,       // 主力净占比 %
+    xlNet: d.f66,          // 超大单净流入
+    lNet: d.f72,           // 大单净流入
+    mNet: d.f78,           // 中单净流入
+    sNet: d.f84,           // 小单净流入
+  }));
+}
+export async function getSectorMoneyFlow() {
+  if (moneyFlowCache && Date.now() - moneyFlowCache.ts < 30 * 1000) return moneyFlowCache.data;
+  const [inflow, outflow] = await Promise.allSettled([
+    fetchSectorsByMoney(1),
+    fetchSectorsByMoney(0),
+  ]);
+  const inflowList = inflow.status === 'fulfilled' ? inflow.value : [];
+  const outflowList = outflow.status === 'fulfilled' ? outflow.value : [];
+  const list = [...inflowList.slice(0, 6), ...outflowList.slice(0, 6)];
+  if (!list.length) throw new Error('资金流向获取失败');
+  const data = { list, inflows: inflowList.slice(0, 6), outflows: outflowList.slice(0, 6), fetchedAt: shNow().toISOString() };
+  moneyFlowCache = { ts: Date.now(), data };
+  return data;
+}
+
 // ---------- 板块联动估算：主流行业板块全量（涨幅榜+跌幅榜+成交额榜合并，缓存 120s） ----------
 let sectorsAllCache = null;
 async function getAllSectors() {

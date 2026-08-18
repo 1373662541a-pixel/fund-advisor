@@ -1,6 +1,6 @@
 import { buildAnalysis } from './analysis.js';
 import { enhanceWithAI } from './ai.js';
-import { getHotNews, getSectorQuotes, getIndexTech } from './market.js';
+import { getHotNews, getSectorQuotes, getIndexTech, getSectorMoneyFlow } from './market.js';
 import { shDateStr } from './time.js';
 import { isTradingDay } from './trading.js';
 
@@ -43,11 +43,13 @@ export async function generateAdvice({ force = false } = {}, userStore) {
     } catch (e) {
       analysis.news = { list: [], error: e.message };
     }
-    const [sectorsRes, techRes] = await Promise.allSettled([getSectorQuotes(), getIndexTech()]);
+    const [sectorsRes, techRes, moneyRes] = await Promise.allSettled([getSectorQuotes(), getIndexTech(), getSectorMoneyFlow()]);
     analysis.market.sectors = sectorsRes.status === 'fulfilled' ? sectorsRes.value.list : [];
     analysis.market.sectorError = sectorsRes.status === 'rejected' ? sectorsRes.reason.message : null;
     analysis.market.tech = techRes.status === 'fulfilled' ? techRes.value.list : [];
     analysis.market.techError = techRes.status === 'rejected' ? techRes.reason.message : null;
+    analysis.market.moneyFlow = moneyRes.status === 'fulfilled' ? moneyRes.value.list : [];
+    analysis.market.moneyFlowError = moneyRes.status === 'rejected' ? moneyRes.reason.message : null;
     const aiResult = await enhanceWithAI(analysis, settings);
     const record = { ...analysis, ai: aiResult };
     userStore.saveAdvice(date, record);
