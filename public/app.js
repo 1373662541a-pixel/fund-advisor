@@ -365,12 +365,15 @@ function renderMarket() {
 
 /* ---------- 行业板块资金动向（行情分析技能） ---------- */
 async function loadSectors() {
+  const wrap = $('#sector-list');
+  const sec = $('#sector-section');
+  const hide = () => { if (sec) sec.classList.add('hidden'); };
+  if (!wrap || !sec) return;
   try {
     const d = await api('/api/market/sectors');
     const list = d.list || [];
-    const wrap = $('#sector-list');
-    if (!wrap) return;
-    if (!list.length) { wrap.innerHTML = '<div class="empty small">板块数据获取失败</div>'; return; }
+    if (!list.length) { hide(); return; }
+    sec.classList.remove('hidden');
     $('#sector-time').textContent = d.fetchedAt ? `更新于 ${new Date(d.fetchedAt).toLocaleTimeString('zh-CN', { hour12: false })}` : '';
     wrap.innerHTML = list.map((s) => `
       <div class="sector-chip ${s.pct >= 0 ? 'up' : 'down'}">
@@ -379,8 +382,7 @@ async function loadSectors() {
         ${s.leader ? `<span class="s-leader">${esc(s.leader)}</span>` : ''}
       </div>`).join('');
   } catch (e) {
-    const wrap = $('#sector-list');
-    if (wrap) wrap.innerHTML = '<div class="empty small">板块数据加载失败</div>';
+    hide(); // 板块数据异常时静默隐藏，不影响主流程
   }
 }
 
